@@ -27,22 +27,17 @@ import { buildShotMap } from 'lorefountain-core/shots/shotMap';
 
 ## Installing
 
-The package isn't on npm. Depend on a tagged release from GitHub; it builds on install:
+The package isn't on npm. For now, products depend on a sibling checkout of this repo:
 
 ```json
-"dependencies": {
-  "lorefountain-core": "github:AllStoneTech/lorefountain-core#v0.1.0"
+"devDependencies": {
+  "lorefountain-core": "file:../LoreFountain-Core"
 }
 ```
 
-To work on Core and a product together, link the local folder:
+Run `npm install` in Core first (it builds `dist/`), and `npm run build` after each change, since products read `dist/`. The extension lists Core as a dev dependency because esbuild bundles it.
 
-```bash
-cd LoreFountain-Core && npm install && npm link
-cd ../LoreFountain-VSCE && npm link lorefountain-core
-```
-
-Run `npm run build` in Core after each change; the product reads `dist/`. `npm install` in the product puts the tagged release back.
+Before a product's CI can install Core, it switches to a pinned release. A `github:` dependency doesn't install on npm 11.12, which fails while preparing git dependencies, so releases will likely attach a prebuilt `npm pack` tarball.
 
 ## Developing
 
