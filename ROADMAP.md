@@ -15,7 +15,8 @@ Done items move to `CHANGELOG.md`.
 - [x] **A read-only project loader** (`project/loadProject`): every entity, glossary term, timeline event and script, honoring `lorefountain.config.json` folder names, with no index store. The Producer's validate stage uses it.
 - [ ] Have the extension's `index/build.ts` use Core's `project/files` instead of its own copy of the same discovery rules.
 - [ ] **Published file formats**: Zod schemas for `.shots.json` and `.cues.json` as read from disk, with `schema_version` checks, so a consumer can tell when a project's files are newer than it supports.
-- [ ] **Producer data schemas**: `producer.json` and the `producer/` records (accepted takes, provenance, consent), so LoreFountain can read them tolerantly and the Producer validates them. Both products read the same definitions.
+- [x] **`producer.json` schema** and tolerant reader (`producer/config`).
+- [ ] **`producer/` record schemas**: accepted takes, provenance and consent, so LoreFountain can read them tolerantly and the Producer validates them.
 - [ ] Fix or work around the `fountain-js` crash on a lyric directly under a character cue.
 
 ## Later: conventions agreed for after LoreFountain 1.1.0
