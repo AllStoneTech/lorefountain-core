@@ -11,7 +11,9 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 - `project/files`: file discovery matching the extension's index build (`listFilesWithExtension`, `ENTITY_EXCLUDED_SUBDIRS`, `isNonEntityDoc`).
 - `config/folders` and `config/readConfig`: folder-name resolution and reading `lorefountain.config.json`, moved from the extension. Writing the config stays in the extension.
 - **The `producer.json` format**, `producer/config`: the Zod schema (schema version 1) for LoreFountain-Producer's settings file, covering sources per asset type and per-tag overrides, take policy, media vault, output formats and loudness, casting, text styles, locked references, per-shot fixes and coverage sub-shots, plus a tolerant reader. A file from a newer Producer is reported as `newer-version` without being parsed. Keys are camelCase except `schema_version`.
-- 20 more unit tests (262 in all).
+- **The `producer/` record formats**, `producer/records`: `producer/takes.json` (the accepted take for each shot tag, spoken line `<shot-tag>.<n>` and cue tag: its vault path, file fingerprint, the fingerprint of the script text it was made from, and who accepted it when) and `producer/provenance.json` (keyed by file fingerprint). Tolerant readers, with newer versions reported unparsed.
+- **Script-text fingerprints**, `producer/fingerprint`, so both products agree on when a take is stale. A shot's picture depends on its `SHOT:`, `POSE:`, `LIGHT:` and action text; a line's recording on its speaker, directions and words; a cue's sound on its type, role, timing and description. Whitespace changes don't count. `spokenLinesOf` gives the numbering used for line recordings.
+- 30 more unit tests (272 in all).
 
 ### Changed
 

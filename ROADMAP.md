@@ -16,7 +16,9 @@ Done items move to `CHANGELOG.md`.
 - [ ] Have the extension's `index/build.ts` use Core's `project/files` instead of its own copy of the same discovery rules.
 - [ ] **Published file formats**: Zod schemas for `.shots.json` and `.cues.json` as read from disk, with `schema_version` checks, so a consumer can tell when a project's files are newer than it supports.
 - [x] **`producer.json` schema** and tolerant reader (`producer/config`).
-- [ ] **`producer/` record schemas**: accepted takes, provenance and consent, so LoreFountain can read them tolerantly and the Producer validates them.
+- [x] **`producer/` record schemas** for accepted takes and provenance, plus script-text fingerprints for stale detection.
+- [ ] Consent records (`producer/consent.json`), for likeness and voice consent.
+- [ ] Match line recordings by fingerprint as well as position, so inserting a line doesn't make every later recording look stale (Producer spec, "Stale assets").
 - [ ] Fix or work around the `fountain-js` crash on a lyric directly under a character cue.
 
 ## Later: conventions agreed for after LoreFountain 1.1.0
