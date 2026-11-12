@@ -32,7 +32,7 @@
  */
 
 import type { Token } from 'fountain-js';
-import { matchPrefixLine, type PrefixKeyword } from '../fountain/conventions';
+import { matchComicLine, matchPrefixLine, type ComicKeyword, type PrefixKeyword } from '../fountain/conventions';
 import { mapTokensToPositions, parseFountain } from '../fountain/parse';
 
 /** A scene heading line. */
@@ -43,11 +43,13 @@ export interface HeadingItem {
   text: string;
 }
 
-/** A LoreFountain prefix line (`SHOT:`, `POSE:`, `PAUSE:`, `SFX:`, ...). */
+/** A LoreFountain prefix line (`SHOT:`, `POSE:`, `PAUSE:`, `SFX:`, ...; with {@link ScanOptions.comic}, also `PAGE:`, `PANEL:`, `LAYOUT:`, `CAPTION:`). */
 export interface DirectiveItem {
   kind: 'directive';
   line: number;
-  keyword: PrefixKeyword;
+  keyword: PrefixKeyword | ComicKeyword;
+  /** The parenthesized speaker of a `CAPTION (SPEAKER):` line. Only ever set when scanning with {@link ScanOptions.comic}. */
+  qualifier?: string;
   /** The text after the prefix, untrimmed at the end. */
   rest: string;
 }
@@ -172,13 +174,50 @@ export function parseCharacterCue(text: string): { name: string; extensions: str
   return { name, extensions };
 }
 
+/** Options for {@link scanScript}. */
+export interface ScanOptions {
+  /**
+   * Also read the comic convention's `PAGE:`, `PANEL:`, `LAYOUT:` and
+   * `CAPTION:` lines as directives (`fountain/conventions.ts`), including
+   * when Fountain misreads one as a character cue. Off by default, so any
+   * other script scans exactly as before.
+   */
+  comic?: boolean;
+}
+
+/** One recognized convention line, from either convention set. */
+interface ConventionLine {
+  keyword: PrefixKeyword | ComicKeyword;
+  qualifier?: string;
+  rest: string;
+}
+
+/** Build the convention-line matcher for a scan. */
+function conventionMatcher(options: ScanOptions): (lineText: string) => ConventionLine | undefined {
+  if (!options.comic) return matchPrefixLine;
+  return (lineText) => matchComicLine(lineText) ?? matchPrefixLine(lineText);
+}
+
+/** A directive item for a matched convention line. */
+function directiveItem(line: number, match: ConventionLine): DirectiveItem {
+  return {
+    kind: 'directive',
+    line,
+    keyword: match.keyword,
+    ...(match.qualifier !== undefined ? { qualifier: match.qualifier } : {}),
+    rest: match.rest,
+  };
+}
+
 /**
  * Scan a script's raw text into {@link ScriptItem}s, in document order.
  *
  * @param scriptText - The `.fountain` file's full text.
+ * @param options - Scan options; see {@link ScanOptions}.
  * @returns Every heading, directive, action line and dialogue item found.
  */
-export function scanScript(scriptText: string): ScriptItem[] {
+export function scanScript(scriptText: string, options: ScanOptions = {}): ScriptItem[] {
+  const matchLine = conventionMatcher(options);
   const tokens = parseFountain(scriptText);
   const positions = new Map<Token, number>();
   for (const positioned of mapTokensToPositions(scriptText, tokens)) {
@@ -219,14 +258,14 @@ export function scanScript(scriptText: string): ScriptItem[] {
         break;
 
       case 'action':
-        pushActionLines(items, physicalLines, line, true);
+        pushActionLines(items, physicalLines, line, true, matchLine);
         break;
 
       case 'character': {
-        const directive = matchPrefixLine(physicalLines[0]);
+        const directive = matchLine(physicalLines[0]);
         if (directive) {
           // A misread prefix line: the whole block is directives and action.
-          items.push({ kind: 'directive', line, keyword: directive.keyword, rest: directive.rest });
+          items.push(directiveItem(line, directive));
           block = null;
           break;
         }
@@ -240,11 +279,11 @@ export function scanScript(scriptText: string): ScriptItem[] {
       case 'parenthetical':
       case 'dialogue':
         if (!block) {
-          pushActionLines(items, physicalLines, line, false);
+          pushActionLines(items, physicalLines, line, false, matchLine);
         } else if (token.type === 'parenthetical') {
           items.push({ kind: 'parenthetical', line, text: (token.text ?? '').trim(), speaker: block });
         } else {
-          pushDialogueLines(items, physicalLines, line, block);
+          pushDialogueLines(items, physicalLines, line, block, matchLine);
         }
         break;
 
@@ -296,13 +335,19 @@ function findLyricLine(rawLines: readonly string[], firstLine: string, afterLine
 }
 
 /** Push each non-blank physical line of an action block as a directive or an action line. */
-function pushActionLines(items: ScriptItem[], physicalLines: string[], firstLine: number, isBlock: boolean): void {
+function pushActionLines(
+  items: ScriptItem[],
+  physicalLines: string[],
+  firstLine: number,
+  isBlock: boolean,
+  matchLine: (lineText: string) => ConventionLine | undefined,
+): void {
   let seenContent = false;
   physicalLines.forEach((lineText, index) => {
     const line = firstLine + index;
-    const directive = matchPrefixLine(lineText);
+    const directive = matchLine(lineText);
     if (directive) {
-      items.push({ kind: 'directive', line, keyword: directive.keyword, rest: directive.rest });
+      items.push(directiveItem(line, directive));
       seenContent = true;
       return;
     }
@@ -314,7 +359,13 @@ function pushActionLines(items: ScriptItem[], physicalLines: string[], firstLine
 }
 
 /** Push a dialogue token's lines: runs of spoken lines become one dialogue item, prefix lines become directives. */
-function pushDialogueLines(items: ScriptItem[], physicalLines: string[], firstLine: number, speaker: CharacterItem): void {
+function pushDialogueLines(
+  items: ScriptItem[],
+  physicalLines: string[],
+  firstLine: number,
+  speaker: CharacterItem,
+  matchLine: (lineText: string) => ConventionLine | undefined,
+): void {
   let run: { line: number; parts: string[] } | undefined;
   const flush = (): void => {
     if (run && run.parts.length > 0) {
@@ -325,10 +376,10 @@ function pushDialogueLines(items: ScriptItem[], physicalLines: string[], firstLi
 
   physicalLines.forEach((lineText, index) => {
     const line = firstLine + index;
-    const directive = matchPrefixLine(lineText);
+    const directive = matchLine(lineText);
     if (directive) {
       flush();
-      items.push({ kind: 'directive', line, keyword: directive.keyword, rest: directive.rest });
+      items.push(directiveItem(line, directive));
       return;
     }
     const text = lineText.trim();

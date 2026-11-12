@@ -81,7 +81,54 @@ export function matchPrefixLine(lineText: string): PrefixLineMatch | undefined {
   return { keyword: match[1] as PrefixKeyword, rest: match[2] };
 }
 
-const DURATION_SECONDS = /(?:about\s+|~\s*)?(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\b/i;
+/**
+ * The comic-script convention's own prefix keywords (ADR-0001, `docs/DECISIONS.md`).
+ * Kept apart from {@link PREFIX_KEYWORDS} on purpose: a script is only read
+ * as a comic when the caller asks (`scanScript`'s `comic` option), so a
+ * non-comic script that happens to start a line with `PAGE:` is scanned
+ * exactly as before. `SFX:`, `POSE:`, `LIGHT:` and `SHOT:` are reused inside a
+ * panel and stay in {@link PREFIX_KEYWORDS}.
+ */
+export const COMIC_KEYWORDS = ['PAGE', 'PANEL', 'LAYOUT', 'CAPTION'] as const;
+
+/** One comic-script prefix keyword. */
+export type ComicKeyword = (typeof COMIC_KEYWORDS)[number];
+
+/**
+ * A whole physical line that is a comic prefix line. `PAGE:`, `PANEL:` and
+ * `LAYOUT:` end at the colon; `CAPTION:` may carry a parenthesized speaker
+ * before it (`CAPTION (LUCIEN):`). Group 1 is the keyword, group 2 the
+ * caption speaker, group 3 the remaining text.
+ */
+const COMIC_LINE = /^[ \t]*(PAGE|PANEL|LAYOUT|CAPTION)(?:[ \t]*\(([^()]*)\))?:[ \t]*(.*)$/;
+
+/** Result of {@link matchComicLine}. */
+export interface ComicLineMatch {
+  keyword: ComicKeyword;
+  /** The parenthesized speaker of a `CAPTION (SPEAKER):` line, trimmed; absent otherwise (and for an empty `()`). */
+  qualifier?: string;
+  /** Everything after the prefix and its following whitespace, untrimmed at the end. */
+  rest: string;
+}
+
+/**
+ * Recognize a physical line as a comic prefix line (`PAGE:`, `PANEL:`,
+ * `LAYOUT:`, `CAPTION:`). Case-sensitive, like every convention line.
+ *
+ * @param lineText - One physical line of script text.
+ * @returns The keyword, optional caption speaker and remaining text, or `undefined` if the line isn't a comic prefix line.
+ */
+export function matchComicLine(lineText: string): ComicLineMatch | undefined {
+  const match = COMIC_LINE.exec(lineText);
+  if (!match) return undefined;
+  const keyword = match[1] as ComicKeyword;
+  const qualifier = match[2]?.trim();
+  // Only CAPTION takes a qualifier: `PAGE (x):` is not a page line.
+  if (match[2] !== undefined && keyword !== 'CAPTION') return undefined;
+  return { keyword, ...(qualifier ? { qualifier } : {}), rest: match[3] };
+}
+
+const DURATION_SECONDS =/(?:about\s+|~\s*)?(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\b/i;
 
 /**
  * Leniently parse a seconds value out of freeform duration text ("4s",
