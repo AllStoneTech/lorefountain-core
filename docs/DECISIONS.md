@@ -4,6 +4,49 @@ Decisions about Core itself. Earlier decisions (ADR-0038 shot maps, ADR-0040 Fou
 
 ---
 
+## ADR-0003 — Script export: options, filter, screenplay model and page layout
+
+**Date:** 2026-11-12 · **Status:** Accepted (owner approved the design on 2026-11-11 and 2026-11-12)
+
+Scripts export to `.fountain`, `.pdf`, `.fdx`, `.html` and `.docx`, all free tier. Core holds everything that needs no third-party library, so any product or a command line can export the same way. The extension (its ADR-0045) adds the PDF and Word renderers, the dialog and the files.
+
+### 1. One pipeline
+
+`export/options` (a Zod schema and four presets) → `export/filter` (standard Fountain text) → `export/screenplay` (a document model with styled text runs) → a writer. The `.fountain` writer is the filter's output. Every other writer reads the model, so all formats agree on what is in the script.
+
+### 2. Options and presets
+
+Include/exclude: shot lines (`SHOT:`, `POSE:`, `LIGHT:`, `DURATION:`), sound cues (`SFX:`, `MUSIC:`, `AMB:`), `PAUSE:` lines, comic lines (`PAGE:`, `PANEL:`, `LAYOUT:`, `CAPTION:`), `[tags]` (dropping a tag keeps its line), notes, sections, synopses, boneyard, LoreFountain's title-page keys (`Order:`, `Production Code:`), and scene numbers (as written, numbered automatically, or none).
+
+| Preset | Keeps |
+|---|---|
+| Pure Fountain | Standard Fountain only: every LoreFountain line, tag and title key removed. Notes, sections and synopses stay (they are Fountain). |
+| Production draft | Everything. |
+| Audio draft | Sound cues and pauses; shot lines and tags removed. |
+| Custom | The writer's own choices, which the extension can save per project. |
+
+Boneyard is off in every preset: cut material shouldn't leave the project by accident.
+
+### 3. The filter keeps the output standard
+
+It removes whole physical lines and never edits other lines, except to drop a `[tag]`. Lines inside a boneyard are left alone (or removed with it). Runs of blank lines that a removal creates collapse to one, and a kept convention line that standard Fountain would read as a character cue gets a leading `!` (ADR-0002), so every export is standard Fountain whether or not the writer fixed the warning.
+
+### 4. The screenplay model and inline formatting
+
+The model is the filtered script parsed with `parseFountain`: title page entries, then elements (scene heading with optional number, action, character with extensions and dual flag, parenthetical, dialogue, lyric, transition, centered, page break, section, synopsis). Each element's text is a list of runs with `bold`, `italic`, `underline` and `note` flags. Backslash escapes (`\*`, `\_`, `\\`) are shielded before parsing, because `fountain-js` drops the backslash and would turn an escaped `*word*` into emphasis (ADR-0002, section 5). Notes are kept as runs so each writer decides how to show them; the PDF never prints them.
+
+### 5. Page layout for the PDF
+
+`export/layout` lays the model out on a monospaced character grid, the industry way: Courier 12 pt (10 characters per inch, 6 lines per inch), US Letter by default or A4, 1.5 inch left margin, 1 inch right, top and bottom. Element columns and widths follow the common screenplay standard (action 6.0 in, dialogue 3.5 in at 2.5 in, parenthetical at 3.1 in, character at 3.7 in, transitions right-aligned). It handles page numbers (top right from page 2), `(MORE)` and `(CONT'D)` when a speech breaks across pages, no scene heading or character name stranded at a page bottom, dual dialogue side by side, forced page breaks, and an optional title page. The output is pages of positioned text rows, so the PDF renderer only draws them and the layout is unit-tested without a PDF library.
+
+### 6. Final Draft XML and HTML
+
+`.fdx` is Final Draft's XML (`FinalDraft DocumentType="Script" Version="5"`), with paragraph types Scene Heading, Action, Character, Parenthetical, Dialogue, Transition, Lyrics, Shot and General. `SHOT:` lines become Shot paragraphs, a feature Final Draft has that Fountain lacks. Scene numbers go in `Number`, dual dialogue in a `DualDialogue` group. Lyrics become italic Dialogue (Final Draft's screenplay template has no lyric element). Notes, sections and synopses are left out: they are never printed, and Final Draft's `ScriptNote` ties a note to a character range that Fountain doesn't record. `.html` is one self-contained, accessible page (semantic elements, one embedded stylesheet with print rules, no scripts).
+
+Revisit when: a Final Draft version rejects the FDX, or a writer needs a layout setting (fonts, margins) that the industry default doesn't cover.
+
+---
+
 ## ADR-0002 — Forced action (`!`) on convention lines, a shared misread check, and two `fountain-js` workarounds
 
 **Date:** 2026-11-12 · **Status:** Accepted (owner approved on 2026-11-11 and 2026-11-12)

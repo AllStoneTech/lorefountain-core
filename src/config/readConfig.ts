@@ -37,6 +37,8 @@ export const loreFountainConfigSchema = z
         hiddenCategories: z.array(z.string()).optional(),
       })
       .optional(),
+    /** Script export settings, validated field by field by `export/settings.ts` so a bad value never blocks the rest of the config. */
+    export: z.unknown().optional(),
   })
   .catchall(z.unknown());
 

@@ -7,7 +7,8 @@
  * lines (`shots/scanScript.ts`); this module only finds them so the writer can
  * make the script standard.
  *
- * Exports {@link findMisreadConventionLines} and {@link MisreadConventionLine}.
+ * Exports {@link findMisreadConventionLines}, {@link MisreadConventionLine} and
+ * {@link bodyStart} (where the script body starts, after any title page).
  *
  * Gotchas:
  * - A forced line (`!SHOT: ...`) is action in every Fountain 1.1 app, so it is
@@ -81,7 +82,7 @@ export function findMisreadConventionLines(scriptText: string, options: MisreadO
  * @param lines - The script's physical lines, boneyard blanked.
  * @returns The 0-based line where the script body starts.
  */
-function bodyStart(lines: readonly string[]): number {
+export function bodyStart(lines: readonly string[]): number {
   if (!TITLE_PAGE_START.test(lines[0] ?? '')) return 0;
   const firstBlank = lines.findIndex((line) => line.trim() === '');
   return firstBlank === -1 ? lines.length : firstBlank + 1;
