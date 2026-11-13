@@ -38,6 +38,11 @@ export const loreFountainConfigSchema = z
       })
       .optional(),
     /**
+     * What kind of writing project this is (`screenplay`, `tv_series`, ...). Kept loose here on purpose: a bad value
+     * must not invalidate the whole file, so `config/projectType`'s `projectTypeFromConfig` validates it and reports it.
+     */
+    project_type: z.unknown().optional(),
+    /**
      * Comic-script settings (`preset`, `limits`, `sfxAsCue`, `panelsAsShots`). Kept loose here on purpose: a bad value
      * must not invalidate the whole file, so `comics/limits`' `comicSettingsFromConfig` validates it
      * part by part and reports what it drops.

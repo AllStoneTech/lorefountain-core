@@ -4,6 +4,18 @@ Decisions about Core itself. Earlier decisions (ADR-0038 shot maps, ADR-0040 Fou
 
 ---
 
+## ADR-0007 — `project_type`: what kind of writing project this is
+
+**Date:** 2026-11-13 · **Status:** Accepted (owner approved on 2026-11-13). Extension side: VSCE ADR-0051.
+
+**Decision.** `config/projectType` defines the eight project types (`screenplay`, `tv_series`, `serialized_universe`, `audio_drama`, `comic`, `prose`, `tabletop`, `custom`), a profile for each (label, summary, structure and the recommended conventions), `projectTypeFromConfig` and `describeProjectType`. `project_type` is read from the config as `z.unknown()` and validated by the helper, the same way `comic` and `export` are, so a bad value is reported and ignored and never invalidates the file.
+
+**Why.** A type names the writing format, not the output. It records and recommends: nothing in Core changes behavior because of it. Products read it from here so they agree on the list and on what each type means.
+
+**Revisit when** a type needs to carry real defaults, or when the Producer's profiles are mapped to it.
+
+---
+
 ## ADR-0006 — Script export: options, filter, screenplay model and page layout
 
 **Date:** 2026-11-12 · **Status:** Accepted (owner approved the design on 2026-11-11 and 2026-11-12)
