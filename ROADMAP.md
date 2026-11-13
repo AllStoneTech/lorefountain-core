@@ -20,7 +20,6 @@ Done items move to `CHANGELOG.md`.
 - [x] **`producer/` record schemas** for accepted takes and provenance, plus script-text fingerprints for stale detection.
 - [ ] Consent records (`producer/consent.json`), for likeness and voice consent.
 - [ ] Match line recordings by fingerprint as well as position, so inserting a line doesn't make every later recording look stale (Producer spec, "Stale assets").
-- [ ] Fix or work around the `fountain-js` crash on a lyric directly under a character cue.
 
 ## Later: conventions agreed for after LoreFountain 1.1.0
 

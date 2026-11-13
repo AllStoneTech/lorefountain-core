@@ -4,6 +4,10 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
+Project types and the comic script export layout. Install the prebuilt package attached to the release (`lorefountain-core-0.3.0.tgz`).
+
 ### Added
 
 - **Project types** (ADR-0007): `config/projectType` with the eight `project_type` values (`screenplay`, `tv_series`, `serialized_universe`, `audio_drama`, `comic`, `prose`, `tabletop`, `custom`), a `PROJECT_TYPE_PROFILES` entry for each, `projectTypeFromConfig` (tolerant: a bad value is reported, never thrown) and `describeProjectType`. `lorefountain.config.json` may now carry `project_type`.
