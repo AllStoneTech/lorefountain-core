@@ -33,6 +33,7 @@ import {
 import type { ReadManifestFileResult } from '../assets/manifestFile';
 import { readShotManifest, type ShotManifest } from '../assets/shotManifest';
 import { resolveWorkspaceFolders, type WorkspaceFolders } from '../config/folders';
+import { comicSettingsFromConfig, resolveComicSettings, type ResolvedComicSettings } from '../comics/limits';
 import { folderSettingsFromConfig, readLoreFountainConfig } from '../config/readConfig';
 import { extractCues, type CueEntry } from '../cues/parseCues';
 import { parseEntityFile, type Entity, type EntityWarning } from '../model/entity';
@@ -90,6 +91,8 @@ export interface LoadedProject {
   folders: WorkspaceFolders;
   /** True when `lorefountain.config.json` exists. */
   configFound: boolean;
+  /** The comic settings in effect (project config over built-in defaults; no user-level setting here). */
+  comic: ResolvedComicSettings;
   entities: LoadedEntity[];
   glossary: GlossaryTerm[];
   events: TimelineEvent[];
@@ -114,6 +117,11 @@ export async function loadProject(root: string): Promise<LoadedProject> {
     issues.push({ kind: 'config', filePath: 'lorefountain.config.json', reason: configResult.reason, message: configResult.message });
   }
   const folders = resolveWorkspaceFolders(root, configResult.ok ? folderSettingsFromConfig(configResult.config) : {});
+  const comicRead = configResult.ok ? comicSettingsFromConfig(configResult.config) : undefined;
+  for (const message of comicRead?.issues ?? []) {
+    issues.push({ kind: 'config', filePath: 'lorefountain.config.json', reason: 'invalid-schema', message });
+  }
+  const comic = resolveComicSettings(comicRead?.settings);
 
   const entities = await loadEntities(folders, issues);
   const glossary = await loadMarkdown(folders.glossary, 'glossary', issues, (text, opts) => {
@@ -145,7 +153,7 @@ export async function loadProject(root: string): Promise<LoadedProject> {
         script,
         titleWarnings: warnings,
         shotMap: buildShotMap(text, shotEntities),
-        cues: extractCues(text),
+        cues: extractCues(text, { sfxAsCue: comic.sfxAsCue }),
       });
     } catch (err) {
       // The Fountain parser can throw on some inputs; report the script rather than fail the load.
@@ -157,6 +165,7 @@ export async function loadProject(root: string): Promise<LoadedProject> {
     root,
     folders,
     configFound: configResult.ok && configResult.found,
+    comic,
     entities,
     glossary,
     events,

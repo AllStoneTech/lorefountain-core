@@ -6,7 +6,8 @@
  * `shots/shotMap.ts` and `.shots.json`.
  *
  * Exports {@link buildPageMap}, its entry/issue types, and
- * {@link DEFAULT_PAGE_LIMITS}. Pure: entity knowledge comes in as
+ * {@link DEFAULT_PAGE_LIMITS} (re-exported from `limits.ts`, where the presets
+ * and their sources live). Pure: entity knowledge comes in as
  * {@link ShotMapEntity}s built by the caller from the index.
  *
  * Issues (all collect-and-continue; nothing here changes what is read):
@@ -16,7 +17,7 @@
  * - Info: `page-number-gap`, `empty-page`, `missing-panel-description`,
  *   `splash-multiple-panels`, `spread-without-range`, the word-budget notes
  *   `many-panels`, `many-balloons`, `long-balloon`, `long-panel-dialogue`
- *   (thresholds in {@link PageLimits}; they never fail a run), and
+ *   (thresholds in {@link PageLimits}, set per project by preset; each can be switched off with `null`; they never fail a run, and each message names the limit and preset that fired), and
  *   `misread-as-character` (a convention line other Fountain apps would print
  *   as a character cue).
  *
@@ -35,6 +36,15 @@ import { blankBoneyard } from '../fountain/boneyard';
 import { extractMentionTargets, type MentionCandidate } from '../index/mentions';
 import type { ValidationIssue } from '../model/errors';
 import type { ShotMapEntity } from '../shots/shotMap';
+import {
+  COMIC_PRESETS,
+  DEFAULT_COMIC_PRESET,
+  describeLimitSource,
+  PAGE_LIMIT_KEYS,
+  type ComicPresetName,
+  type PageLimitKey,
+  type PageLimits,
+} from './limits';
 import {
   countWords,
   extractComic,
@@ -98,30 +108,23 @@ export interface PageMapEntry extends PageLabel {
   };
 }
 
-/** Thresholds for the informational word-budget notes. A script author tunes them; none ever fails a run. */
-export interface PageLimits {
-  /** A page with more numbered panels than this is noted (`many-panels`). */
-  maxPanelsPerPage: number;
-  /** A panel with more balloons than this is noted (`many-balloons`). */
-  maxBalloonsPerPanel: number;
-  /** A balloon with more words than this is noted (`long-balloon`). */
-  maxWordsPerBalloon: number;
-  /** A panel whose balloons and captions hold more words than this is noted (`long-panel-dialogue`). */
-  maxWordsPerPanel: number;
-}
-
-/** Common comic-craft guidance: up to 9 panels, 5 balloons, 25-word balloons and 40 words in a panel. */
-export const DEFAULT_PAGE_LIMITS: PageLimits = {
-  maxPanelsPerPage: 9,
-  maxBalloonsPerPanel: 5,
-  maxWordsPerBalloon: 25,
-  maxWordsPerPanel: 40,
-};
+export { DEFAULT_PAGE_LIMITS, type PageLimits } from './limits';
 
 /** Options for {@link buildPageMap}. */
 export interface PageMapOptions {
-  /** Overrides for {@link DEFAULT_PAGE_LIMITS}. */
+  /** The preset whose limits apply (default `western`); named in the word-budget messages. */
+  preset?: ComicPresetName;
+  /** Limits applied over the preset's. `null` switches a note off. */
   limits?: Partial<PageLimits>;
+  /** Which limits a project's `comic.limits` set, so messages say so. Defaults to every key present in `limits`. */
+  overriddenLimits?: readonly PageLimitKey[];
+}
+
+/** The limits in effect for one {@link buildPageMap} call, with where each came from. */
+interface LimitContext {
+  limits: PageLimits;
+  preset: ComicPresetName;
+  overridden: readonly PageLimitKey[];
 }
 
 /** A per-script issue found while building the page map. */
@@ -162,7 +165,7 @@ export interface PageMapResult {
  *
  * @param scriptText - The `.fountain` file's full text.
  * @param entities - Every known entity, for mention and speaker resolution.
- * @param options - Optional overrides for the word-budget thresholds.
+ * @param options - Optional preset and limits for the word-budget thresholds.
  * @returns The pages, whether any explicit `PAGE:` exists, totals, and any issues found.
  */
 export function buildPageMap(
@@ -170,7 +173,14 @@ export function buildPageMap(
   entities: readonly ShotMapEntity[],
   options: PageMapOptions = {},
 ): PageMapResult {
-  const limits: PageLimits = { ...DEFAULT_PAGE_LIMITS, ...options.limits };
+  const preset = options.preset ?? DEFAULT_COMIC_PRESET;
+  const overridden = options.overriddenLimits ?? PAGE_LIMIT_KEYS.filter((key) => options.limits?.[key] !== undefined);
+  const limits: PageLimits = { ...COMIC_PRESETS[preset] };
+  for (const key of PAGE_LIMIT_KEYS) {
+    const value = options.limits?.[key];
+    if (value !== undefined) limits[key] = value;
+  }
+  const limitContext: LimitContext = { limits, preset, overridden };
   const structure = extractComic(scriptText);
   const candidates: MentionCandidate[] = entities.map((entity) => ({ id: entity.id, kind: 'entity', names: entity.names }));
 
@@ -178,7 +188,7 @@ export function buildPageMap(
   const issues: ScriptPageIssue[] = [...structure.issues];
 
   if (structure.hasPages) {
-    issues.push(...pageIssues(pages, limits), ...misreadIssues(scriptText, pages));
+    issues.push(...pageIssues(pages, limitContext), ...misreadIssues(scriptText, pages));
   }
   issues.sort((a, b) => a.line - b.line);
 
@@ -306,7 +316,9 @@ function coveredNumbers(page: PageLabel): number[] {
 }
 
 /** Numbering, structure and word-budget checks across the explicit pages. */
-function pageIssues(pages: readonly PageMapEntry[], limits: PageLimits): ScriptPageIssue[] {
+function pageIssues(pages: readonly PageMapEntry[], context: LimitContext): ScriptPageIssue[] {
+  const { limits } = context;
+  const via = (key: PageLimitKey): string => describeLimitSource(context.preset, context.overridden, key);
   const issues: ScriptPageIssue[] = [];
   const seenNumbers = new Map<number, number>();
   const seenLabels = new Map<string, number>();
@@ -352,8 +364,8 @@ function pageIssues(pages: readonly PageMapEntry[], limits: PageLimits): ScriptP
       if (page.modifiers.includes('SPREAD') && page.endNumber === undefined) {
         issues.push(issue('spread-without-range', 'info', line, `PAGE: ${page.label} (line ${line + 1}) is marked SPREAD but its label isn't a range such as 2-3.`));
       }
-      if (page.counts.panels > limits.maxPanelsPerPage) {
-        issues.push(issue('many-panels', 'info', line, `PAGE: ${page.label} (line ${line + 1}) has ${page.counts.panels} panels; more than ${limits.maxPanelsPerPage} is hard to lay out.`));
+      if (limits.maxPanelsPerPage !== null && page.counts.panels > limits.maxPanelsPerPage) {
+        issues.push(issue('many-panels', 'info', line, `PAGE: ${page.label} (line ${line + 1}) has ${page.counts.panels} panels; more than ${limits.maxPanelsPerPage} is hard to lay out (maxPanelsPerPage, ${via('maxPanelsPerPage')}).`));
       }
     }
 
@@ -362,15 +374,15 @@ function pageIssues(pages: readonly PageMapEntry[], limits: PageLimits): ScriptP
       if (panel.number > 0 && (panel.description ?? '') === '') {
         issues.push(issue('missing-panel-description', 'info', line, `PANEL: (line ${line + 1}) has no description for the artist.`));
       }
-      if (panel.counts.balloons > limits.maxBalloonsPerPanel) {
-        issues.push(issue('many-balloons', 'info', line, `Panel ${panel.number}${pageRef(page)} (line ${line + 1}) has ${panel.counts.balloons} balloons; more than ${limits.maxBalloonsPerPanel} crowds a panel.`));
+      if (limits.maxBalloonsPerPanel !== null && panel.counts.balloons > limits.maxBalloonsPerPanel) {
+        issues.push(issue('many-balloons', 'info', line, `Panel ${panel.number}${pageRef(page)} (line ${line + 1}) has ${panel.counts.balloons} balloons; more than ${limits.maxBalloonsPerPanel} crowds a panel (maxBalloonsPerPanel, ${via('maxBalloonsPerPanel')}).`));
       }
-      if (panel.counts.words > limits.maxWordsPerPanel) {
-        issues.push(issue('long-panel-dialogue', 'info', line, `Panel ${panel.number}${pageRef(page)} (line ${line + 1}) letters ${panel.counts.words} words; more than ${limits.maxWordsPerPanel} is heavy for one panel.`));
+      if (limits.maxWordsPerPanel !== null && panel.counts.words > limits.maxWordsPerPanel) {
+        issues.push(issue('long-panel-dialogue', 'info', line, `Panel ${panel.number}${pageRef(page)} (line ${line + 1}) letters ${panel.counts.words} words; more than ${limits.maxWordsPerPanel} is heavy for one panel (maxWordsPerPanel, ${via('maxWordsPerPanel')}).`));
       }
       for (const entry of panel.lettering) {
-        if (entry.kind === 'balloon' && countWords(entry.text) > limits.maxWordsPerBalloon) {
-          issues.push(issue('long-balloon', 'info', entry.line, `${entry.speaker}'s balloon (line ${entry.line + 1}) has ${countWords(entry.text)} words; more than ${limits.maxWordsPerBalloon} is hard to letter.`));
+        if (entry.kind === 'balloon' && limits.maxWordsPerBalloon !== null && countWords(entry.text) > limits.maxWordsPerBalloon) {
+          issues.push(issue('long-balloon', 'info', entry.line, `${entry.speaker}'s balloon (line ${entry.line + 1}) has ${countWords(entry.text)} words; more than ${limits.maxWordsPerBalloon} is hard to letter (maxWordsPerBalloon, ${via('maxWordsPerBalloon')}).`));
         }
       }
     }

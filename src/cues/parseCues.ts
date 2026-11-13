@@ -43,10 +43,20 @@
  * `fountain/conventions.ts`, so the two parsers can't drift. The tag is optional — a cue can exist before anyone has
  * tagged or sourced its asset — and is extracted before role/timing on a
  * `MUSIC:` line, since it always sits closest to the prefix.
+ *
+ * Comic scripts (ADR-0001 in `docs/DECISIONS.md`): in a script with a `PAGE:`
+ * line, an `SFX:` inside a panel is lettering, not an audio cue, so by default
+ * it is left out here and never checked against `audio.json`. A project that
+ * also produces audio from the comic sets `comic.sfxAsCue`, and then comic
+ * `SFX:` lines are both. `MUSIC:` and `AMB:` are always cues. A script with no
+ * `PAGE:` line is unaffected. "Inside a panel" is decided by the comic walk
+ * (`comics/parseComic.ts`), so the two can't disagree: an `SFX:` before any
+ * `PAGE:`/`PANEL:` is not lettering and stays a cue.
  */
 
 import { blankBoneyard } from '../fountain/boneyard';
 import { matchLeadingTag } from '../fountain/conventions';
+import { extractComic } from '../comics/parseComic';
 
 export type CueType = 'sfx' | 'music' | 'amb';
 
@@ -81,6 +91,16 @@ const CUE_LINE = /^[ \t]*(SFX|MUSIC|AMB):[ \t]*(.*)$/;
 const MUSIC_ROLE = /^(SOURCE BED|BED|STING|BRIDGE)\b[ \t]*-?[ \t]*(.*)$/;
 const MUSIC_TIMING = /^(IN|OUT)\b[ \t]*-?[ \t]*(.*)$/;
 
+/** Options for {@link extractCues}. */
+export interface ExtractCuesOptions {
+  /**
+   * Keep `SFX:` lines that sit inside a comic panel as audio cues too (the
+   * project's `comic.sfxAsCue`). Default false: in a comic script they are
+   * lettering only. No effect on a script without a `PAGE:` line.
+   */
+  sfxAsCue?: boolean;
+}
+
 /**
  * Extract every SFX:/MUSIC:/AMB: cue from a script's raw text.
  *
@@ -97,9 +117,10 @@ const MUSIC_TIMING = /^(IN|OUT)\b[ \t]*-?[ \t]*(.*)$/;
  * neither regex is ever re-run against already-consumed description text.
  *
  * @param scriptText - The `.fountain` file's full text.
+ * @param options - Whether comic-panel `SFX:` lines also count as cues (default: they don't).
  * @returns Every cue found, in document order.
  */
-export function extractCues(scriptText: string): CueEntry[] {
+export function extractCues(scriptText: string, options: ExtractCuesOptions = {}): CueEntry[] {
   // Lines inside a boneyard are hidden from the script, so never cues (`fountain/boneyard.ts`).
   const lines = blankBoneyard(scriptText).split(/\r\n|\r|\n/);
   const cues: CueEntry[] = [];
@@ -140,5 +161,16 @@ export function extractCues(scriptText: string): CueEntry[] {
     cues.push({ type, tag, description: rest, line });
   });
 
-  return cues;
+  if (options.sfxAsCue === true || !cues.some((cue) => cue.type === 'sfx')) return cues;
+
+  // A comic's panel SFX is lettering. Drop exactly the SFX lines the comic walk placed in a panel.
+  const comic = extractComic(scriptText);
+  if (!comic.hasPages) return cues;
+  const lettered = new Set<number>();
+  for (const page of comic.pages) {
+    for (const panel of page.panels) {
+      for (const entry of panel.lettering) if (entry.kind === 'sfx') lettered.add(entry.line);
+    }
+  }
+  return cues.filter((cue) => cue.type !== 'sfx' || !lettered.has(cue.line));
 }

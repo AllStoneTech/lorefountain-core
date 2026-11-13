@@ -17,8 +17,12 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 
 - **The comic script convention** (ADR-0001, `docs/DECISIONS.md`): `PAGE:`/`PANEL:`/`CAPTION:`/`LAYOUT:` prefix lines plus ordinary dialogue for balloons, `comics/parseComic`, `comics/pageMap` (`buildPageMap`, with word counts and issues) and `comics/pageSidecar` (the `.pages.json` schema, version 1). `scanScript` takes `{ comic: true }`; default scans are unchanged.
 
+- **Comic `SFX:` is lettering by default** (ADR-0001, option C): `extractCues(text, { sfxAsCue })` leaves `SFX:` lines inside a comic panel out of the cues, so they are not written to `.cues.json` or checked against `audio.json`. The project setting `comic.sfxAsCue` (default false) keeps them as cues too. `MUSIC:` and `AMB:` are unaffected, as is any script with no `PAGE:` line.
+- **Comic word-budget presets**, `comics/limits`: `COMIC_PRESETS` (`western`, `manga`, `european`, `webtoon`, `custom`), `resolveComicSettings` (project `comic.limits` over `comic.preset` over a user-level default over `western`), and `comicSettingsFromConfig`, a tolerant reader for the new `comic` block of `lorefountain.config.json` (`preset`, `limits`, `sfxAsCue`). Any limit may be `null` to switch its note off. `buildPageMap` takes `preset`, `limits` and `overriddenLimits`, and each note names the limit and preset that fired. `loadProject` returns the resolved `comic` settings. The numbers are guidance with sources or "unsourced" noted in the code.
+
 ### Changed
 
+- **Comic default limits changed:** balloons per panel 5 to 3, words per panel 40 to 35 (panels per page 9 and words per balloon 25 stay). `PageLimits` fields may now be `null`.
 - The README describes how products link Core during development (`file:../LoreFountain-Core`) and the plan for prebuilt release tarballs.
 
 ## [0.1.0] - 2026-11-06

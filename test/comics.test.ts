@@ -315,7 +315,7 @@ describe('buildPageMap', () => {
     });
 
     it('reports word-budget notes as info only, past the default limits', () => {
-      const many = ['PAGE: 1', ...Array.from({ length: DEFAULT_PAGE_LIMITS.maxPanelsPerPage + 1 }, (_, i) => `\nPANEL: Panel ${i}.`)].join('\n');
+      const many = ['PAGE: 1', ...Array.from({ length: (DEFAULT_PAGE_LIMITS.maxPanelsPerPage ?? 0) + 1 }, (_, i) => `\nPANEL: Panel ${i}.`)].join('\n');
       expect(codes(issuesFor(many))).toEqual(['many-panels']);
 
       const balloons = Array.from({ length: 6 }, () => '\nMARA\nHi.\n').join('');
@@ -325,6 +325,13 @@ describe('buildPageMap', () => {
       const found = issuesFor(`PAGE: 1\n\nPANEL: Talky.\n\nMARA\n${long}\n`);
       expect(codes(found)).toEqual(expect.arrayContaining(['long-balloon', 'long-panel-dialogue']));
       expect(found.every((i) => i.severity === 'info')).toBe(true);
+    });
+
+    it('names the limit and preset that fired, and the override when the project set one', () => {
+      const text = 'PAGE: 1\n\nPANEL: Crowd.\n\nMARA\nHi.\n\nMARA\nHi.\n\nMARA\nHi.\n\nMARA\nHi.\n';
+      expect(issuesFor(text)[0].message).toContain('maxBalloonsPerPanel, western preset');
+      expect(issuesFor(text, { preset: 'manga' })[0].message).toContain('manga preset');
+      expect(issuesFor(text, { limits: { maxBalloonsPerPanel: 2 } })[0].message).toContain('comic.limits.maxBalloonsPerPanel');
     });
 
     it('lets a script author override the limits', () => {
@@ -361,7 +368,9 @@ describe('buildPageMap', () => {
       const shots = buildShotMap(mixed, []);
       expect(shots.hasExplicitShots).toBe(true);
       expect(shots.shots.find((s) => s.tag === 'pier-wide')).toBeDefined();
-      expect(extractCues(mixed).map((c) => c.type)).toEqual(['music', 'amb', 'sfx']);
+      // The SFX is lettering in a comic, so only MUSIC and AMB are audio cues unless `sfxAsCue` is set.
+      expect(extractCues(mixed).map((c) => c.type)).toEqual(['music', 'amb']);
+      expect(extractCues(mixed, { sfxAsCue: true }).map((c) => c.type)).toEqual(['music', 'amb', 'sfx']);
     });
 
     it('records SHOT: on the panel and ignores MUSIC:/AMB: there', () => {

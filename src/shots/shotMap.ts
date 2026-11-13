@@ -234,12 +234,13 @@ interface SceneContext {
  *
  * @param scriptText - The `.fountain` file's full text.
  * @param entities - Every known entity, for mention, speaker and location resolution.
+ * @param options - `sfxAsCue`: the project's `comic.sfxAsCue`, so a shot's `cues` list matches `.cues.json`.
  * @returns The shots, whether any explicit `SHOT:` exists, and any issues found.
  */
-export function buildShotMap(scriptText: string, entities: readonly ShotMapEntity[]): ShotMapResult {
+export function buildShotMap(scriptText: string, entities: readonly ShotMapEntity[], options: { sfxAsCue?: boolean } = {}): ShotMapResult {
   const items = scanScript(scriptText);
   const lastLine = lastLineIndex(scriptText);
-  const cueLines = extractCues(scriptText).map((cue) => cue.line);
+  const cueLines = extractCues(scriptText, { sfxAsCue: options.sfxAsCue }).map((cue) => cue.line);
   const candidates: MentionCandidate[] = entities.map((entity) => ({ id: entity.id, kind: 'entity', names: entity.names }));
 
   const shots: ShotMapEntry[] = [];

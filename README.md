@@ -14,7 +14,7 @@ It reads and parses only. It never writes a file, so a product that uses it can'
 | `shots/scanScript` | A line-level scan of a script: headings, prefix lines, action, dialogue, transitions, lyrics |
 | `shots/shotMap` | The per-shot map written to a script's `.shots.json`, and the script issues found while building it |
 | `shots/parseShots`, `shots/sceneHeading` | Shot lines and scene headings |
-| `comics/parseComic`, `comics/pageMap`, `comics/pageSidecar` | The comic script convention (`PAGE:`/`PANEL:`/`CAPTION:`): structure, the page map written to `.pages.json`, and its schema. See `docs/DECISIONS.md` |
+| `comics/parseComic`, `comics/pageMap`, `comics/pageSidecar`, `comics/limits` | The comic script convention (`PAGE:`/`PANEL:`/`CAPTION:`): structure, the page map written to `.pages.json`, its schema, and the word-budget presets and `comic` config settings. See `docs/DECISIONS.md` |
 | `cues/parseCues` | `SFX:`, `MUSIC:` and `AMB:` cues |
 | `model/*` | Entity, glossary, timeline, story overview and script models, with their Zod schemas |
 | `index/mentions` | Finds entity mentions in text |

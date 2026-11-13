@@ -136,3 +136,58 @@ describe('extractCues', () => {
     });
   });
 });
+
+describe('extractCues in comic scripts (ADR-0001, SFX option C)', () => {
+  const comic = [
+    'PAGE: 1',
+    '',
+    'PANEL: The pier.',
+    '',
+    'SFX: [gull-cry] KRAAAW',
+    '',
+    'MUSIC: STING - the reveal',
+    '',
+    'AMB: gulls and wind',
+    '',
+  ].join('\n');
+
+  it('leaves comic-panel SFX out of the cues by default, but keeps MUSIC and AMB', () => {
+    expect(extractCues(comic).map((c) => c.type)).toEqual(['music', 'amb']);
+  });
+
+  it('keeps comic-panel SFX as a cue, tag and all, when sfxAsCue is true', () => {
+    const cues = extractCues(comic, { sfxAsCue: true });
+    expect(cues.map((c) => c.type)).toEqual(['sfx', 'music', 'amb']);
+    expect(cues[0]).toMatchObject({ tag: 'gull-cry', description: 'KRAAAW' });
+  });
+
+  it('keeps an SFX that comes before any PAGE: or PANEL: (it is not lettering)', () => {
+    const text = `SFX: [theme-tone] a low tone\n\n${comic}`;
+    expect(extractCues(text).map((c) => [c.type, c.description])).toEqual([
+      ['sfx', 'a low tone'],
+      ['music', 'the reveal'],
+      ['amb', 'gulls and wind'],
+    ]);
+  });
+
+  it('drops an SFX between a PAGE: and its first PANEL:, which the comic reads as lettering', () => {
+    expect(extractCues('PAGE: 1\n\nSFX: BOOM\n\nPANEL: a\n')).toEqual([]);
+  });
+
+  it('ignores an SFX inside a boneyard either way', () => {
+    const text = `${comic}\n/*\nSFX: hidden\n*/\n`;
+    expect(extractCues(text)).toHaveLength(2);
+    expect(extractCues(text, { sfxAsCue: true })).toHaveLength(3);
+  });
+
+  it('does not change a screenplay or audio-drama script', () => {
+    const text = 'INT. THE ARK - NIGHT\n\nSFX: [metal-groan] metal groaning\n\nMUSIC: BED\n';
+    expect(extractCues(text).map((c) => c.type)).toEqual(['sfx', 'music']);
+    expect(extractCues(text, { sfxAsCue: false })).toEqual(extractCues(text, { sfxAsCue: true }));
+  });
+
+  it('does not flag a tag on a filtered comic SFX: it is simply not a cue', () => {
+    const text = 'PAGE: 1\n\nPANEL: a\n\nSFX: [no-such-audio] THOOM\n';
+    expect(extractCues(text).filter((c) => c.tag !== undefined)).toEqual([]);
+  });
+});

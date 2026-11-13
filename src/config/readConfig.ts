@@ -37,6 +37,12 @@ export const loreFountainConfigSchema = z
         hiddenCategories: z.array(z.string()).optional(),
       })
       .optional(),
+    /**
+     * Comic-script settings (`preset`, `limits`, `sfxAsCue`). Kept loose here on purpose: a bad value
+     * must not invalidate the whole file, so `comics/limits`' `comicSettingsFromConfig` validates it
+     * part by part and reports what it drops.
+     */
+    comic: z.unknown().optional(),
   })
   .catchall(z.unknown());
 
