@@ -16,10 +16,19 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 - 30 more unit tests (272 in all).
 
 - **The comic script convention** (ADR-0001, `docs/DECISIONS.md`): `PAGE:`/`PANEL:`/`CAPTION:`/`LAYOUT:` prefix lines plus ordinary dialogue for balloons, `comics/parseComic`, `comics/pageMap` (`buildPageMap`, with word counts and issues) and `comics/pageSidecar` (the `.pages.json` schema, version 1). `scanScript` takes `{ comic: true }`; default scans are unchanged.
+- **Forced convention lines** (ADR-0002): every convention line may start with Fountain 1.1's forced-action `!` (`!SHOT: CLOSE-UP`), which keeps a stacked all-caps block from being read as a character cue in other Fountain apps. `matchPrefixLine` and `matchComicLine` report it as `forced`, and cues on forced lines are extracted.
+- **`fountain/misread`**, `findMisreadConventionLines`: one check, for every script, for convention lines standard Fountain reads as a character cue. Forced lines, lines with a lowercase letter and boneyard text are never reported. The shot map now reports `misread-as-character` as a warning for prefix lines on every script, and the comic page map reports it as a warning for comic lines only, so a line is never reported twice.
 
 ### Changed
 
 - The README describes how products link Core during development (`file:../LoreFountain-Core`) and the plan for prebuilt release tarballs.
+- `matchPrefixLine` and `matchComicLine` results gain a `forced` field, and `PREFIX_LINE`'s capture groups shift by one (group 1 is now the `!`).
+- The comic page map's `misread-as-character` is now a warning (it was an info note), covers comic lines only, and suggests starting the line with `!`.
+
+### Fixed
+
+- **A lyric directly under a character cue no longer fails the whole script.** `fountain-js` 1.2.4 throws on it; `parseFountain` now retries with the lyric shielded and returns it as a lyric token. Scripts that parsed before are unchanged.
+- **Tokens whose text `fountain-js` rewrites are no longer dropped** from shot maps, cues and other scans: forced lines (`!`, `@`, `.`, `>`, `~`), backslash escapes, tab indentation, two-space lines inside dialogue, and multi-line tokens in files with Windows line endings.
 
 ## [0.1.0] - 2026-11-06
 

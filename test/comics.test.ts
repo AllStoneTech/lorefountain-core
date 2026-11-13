@@ -23,16 +23,21 @@ const lines = (...parts: string[]): string => parts.join('\n');
 
 describe('matchComicLine', () => {
   it('reads PAGE, PANEL and LAYOUT lines', () => {
-    expect(matchComicLine('PAGE: 7 (SPLASH)')).toEqual({ keyword: 'PAGE', rest: '7 (SPLASH)' });
-    expect(matchComicLine('  PANEL: Wide shot.')).toEqual({ keyword: 'PANEL', rest: 'Wide shot.' });
-    expect(matchComicLine('LAYOUT: three tiers')).toEqual({ keyword: 'LAYOUT', rest: 'three tiers' });
+    expect(matchComicLine('PAGE: 7 (SPLASH)')).toEqual({ keyword: 'PAGE', rest: '7 (SPLASH)', forced: false });
+    expect(matchComicLine('  PANEL: Wide shot.')).toEqual({ keyword: 'PANEL', rest: 'Wide shot.', forced: false });
+    expect(matchComicLine('LAYOUT: three tiers')).toEqual({ keyword: 'LAYOUT', rest: 'three tiers', forced: false });
   });
 
   it('reads a CAPTION speaker only on CAPTION', () => {
-    expect(matchComicLine('CAPTION (LUCIEN): Years later.')).toEqual({ keyword: 'CAPTION', qualifier: 'LUCIEN', rest: 'Years later.' });
-    expect(matchComicLine('CAPTION: Dawn.')).toEqual({ keyword: 'CAPTION', rest: 'Dawn.' });
-    expect(matchComicLine('CAPTION (): Dawn.')).toEqual({ keyword: 'CAPTION', rest: 'Dawn.' });
+    expect(matchComicLine('CAPTION (LUCIEN): Years later.')).toEqual({ keyword: 'CAPTION', qualifier: 'LUCIEN', rest: 'Years later.', forced: false });
+    expect(matchComicLine('CAPTION: Dawn.')).toEqual({ keyword: 'CAPTION', rest: 'Dawn.', forced: false });
+    expect(matchComicLine('CAPTION (): Dawn.')).toEqual({ keyword: 'CAPTION', rest: 'Dawn.', forced: false });
     expect(matchComicLine('PAGE (x): 3')).toBeUndefined();
+  });
+
+  it('accepts a leading forced-action ! (Core ADR-0002)', () => {
+    expect(matchComicLine('!PAGE: 7')).toEqual({ keyword: 'PAGE', rest: '7', forced: true });
+    expect(matchComicLine('!CAPTION (LUCIEN): Later.')).toEqual({ keyword: 'CAPTION', qualifier: 'LUCIEN', rest: 'Later.', forced: true });
   });
 
   it.each(['Page: 1', 'PAGE 1', 'PAGE TURN', 'PAGE : 1', 'PANELS: x', 'see PAGE: 2'])('is case- and shape-exact: %s', (line) => {
@@ -333,9 +338,17 @@ describe('buildPageMap', () => {
       expect(codes(issuesFor(text, { limits: { maxPanelsPerPage: 2 } }))).toEqual(['many-panels']);
     });
 
-    it('notes a convention line other Fountain apps would read as a character cue', () => {
-      const found = issuesFor('PAGE: 1\nPANEL: a\n\nPAGE: 2\n\nPANEL: b\n\nSFX: BOOM\nMARA\nHi.\n');
-      expect(found.filter((i) => i.code === 'misread-as-character').map((i) => i.line)).toEqual([0, 7]);
+    it('warns about a comic line other Fountain apps would read as a character cue, leaving prefix lines to the shot map', () => {
+      const text = 'PAGE: 1\nPANEL: a\n\nPAGE: 2\n\nPANEL: b\n\nSFX: BOOM\nMARA\nHi.\n';
+      const misread = issuesFor(text).filter((i) => i.code === 'misread-as-character');
+      expect(misread.map((i) => [i.line, i.severity])).toEqual([[0, 'warning']]);
+      const fromShotMap = buildShotMap(text, []).issues.filter((i) => i.code === 'misread-as-character');
+      expect(fromShotMap.map((i) => [i.line, i.severity])).toEqual([[7, 'warning']]);
+    });
+
+    it('does not warn about a forced comic line', () => {
+      const misread = issuesFor('!PAGE: 1\nPANEL: a\n').filter((i) => i.code === 'misread-as-character');
+      expect(misread).toEqual([]);
     });
 
     it('does not note a convention line with a lowercase word, a blank line after it, or inside a boneyard', () => {

@@ -59,26 +59,32 @@ export const PREFIX_KEYWORDS = ['SHOT', 'POSE', 'LIGHT', 'DURATION', 'PAUSE', 'S
 /** One LoreFountain prefix keyword. */
 export type PrefixKeyword = (typeof PREFIX_KEYWORDS)[number];
 
-/** A whole physical line that is a LoreFountain prefix line. Group 1 is the keyword, group 2 the remaining text. */
-export const PREFIX_LINE = new RegExp(`^[ \\t]*(${PREFIX_KEYWORDS.join('|')}):[ \\t]*(.*)$`);
+/**
+ * A whole physical line that is a LoreFountain prefix line, optionally forced
+ * as Action with Fountain 1.1's leading `!` (ADR-0002). Group 1 is the `!`
+ * (empty when absent), group 2 the keyword, group 3 the remaining text.
+ */
+export const PREFIX_LINE = new RegExp(`^[ \\t]*(!?)(${PREFIX_KEYWORDS.join('|')}):[ \\t]*(.*)$`);
 
 /** Result of {@link matchPrefixLine}. */
 export interface PrefixLineMatch {
   keyword: PrefixKeyword;
   /** Everything after the prefix and its following whitespace, untrimmed at the end. */
   rest: string;
+  /** True when the line starts with Fountain's forced-action `!`, so every Fountain app reads it as action. */
+  forced: boolean;
 }
 
 /**
  * Recognize a physical line as a LoreFountain prefix line.
  *
- * @param lineText - One physical line of script text.
- * @returns The keyword and remaining text, or `undefined` if the line isn't a prefix line.
+ * @param lineText - One physical line of script text, with or without a leading `!`.
+ * @returns The keyword, remaining text and whether the line is forced, or `undefined` if the line isn't a prefix line.
  */
 export function matchPrefixLine(lineText: string): PrefixLineMatch | undefined {
   const match = PREFIX_LINE.exec(lineText);
   if (!match) return undefined;
-  return { keyword: match[1] as PrefixKeyword, rest: match[2] };
+  return { keyword: match[2] as PrefixKeyword, rest: match[3], forced: match[1] === '!' };
 }
 
 /**
@@ -97,10 +103,11 @@ export type ComicKeyword = (typeof COMIC_KEYWORDS)[number];
 /**
  * A whole physical line that is a comic prefix line. `PAGE:`, `PANEL:` and
  * `LAYOUT:` end at the colon; `CAPTION:` may carry a parenthesized speaker
- * before it (`CAPTION (LUCIEN):`). Group 1 is the keyword, group 2 the
- * caption speaker, group 3 the remaining text.
+ * before it (`CAPTION (LUCIEN):`). Like {@link PREFIX_LINE}, it may be
+ * forced with a leading `!`. Group 1 is the `!`, group 2 the keyword, group 3
+ * the caption speaker, group 4 the remaining text.
  */
-const COMIC_LINE = /^[ \t]*(PAGE|PANEL|LAYOUT|CAPTION)(?:[ \t]*\(([^()]*)\))?:[ \t]*(.*)$/;
+const COMIC_LINE = /^[ \t]*(!?)(PAGE|PANEL|LAYOUT|CAPTION)(?:[ \t]*\(([^()]*)\))?:[ \t]*(.*)$/;
 
 /** Result of {@link matchComicLine}. */
 export interface ComicLineMatch {
@@ -109,23 +116,25 @@ export interface ComicLineMatch {
   qualifier?: string;
   /** Everything after the prefix and its following whitespace, untrimmed at the end. */
   rest: string;
+  /** True when the line starts with Fountain's forced-action `!`. */
+  forced: boolean;
 }
 
 /**
  * Recognize a physical line as a comic prefix line (`PAGE:`, `PANEL:`,
  * `LAYOUT:`, `CAPTION:`). Case-sensitive, like every convention line.
  *
- * @param lineText - One physical line of script text.
- * @returns The keyword, optional caption speaker and remaining text, or `undefined` if the line isn't a comic prefix line.
+ * @param lineText - One physical line of script text, with or without a leading `!`.
+ * @returns The keyword, optional caption speaker, remaining text and whether the line is forced, or `undefined` if the line isn't a comic prefix line.
  */
 export function matchComicLine(lineText: string): ComicLineMatch | undefined {
   const match = COMIC_LINE.exec(lineText);
   if (!match) return undefined;
-  const keyword = match[1] as ComicKeyword;
-  const qualifier = match[2]?.trim();
+  const keyword = match[2] as ComicKeyword;
+  const qualifier = match[3]?.trim();
   // Only CAPTION takes a qualifier: `PAGE (x):` is not a page line.
-  if (match[2] !== undefined && keyword !== 'CAPTION') return undefined;
-  return { keyword, ...(qualifier ? { qualifier } : {}), rest: match[3] };
+  if (match[3] !== undefined && keyword !== 'CAPTION') return undefined;
+  return { keyword, ...(qualifier ? { qualifier } : {}), rest: match[4], forced: match[1] === '!' };
 }
 
 const DURATION_SECONDS =/(?:about\s+|~\s*)?(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\b/i;

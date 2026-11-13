@@ -113,15 +113,14 @@ describe('loadProject', () => {
     expect(project.folders.world).toBe(join(root, 'world'));
   });
 
-  it('reports a script the Fountain parser throws on, and keeps loading the rest', async () => {
-    // fountain-js 1.2.4 throws on a lyric directly under a character cue.
+  it('loads a script with a lyric directly under a character cue (fountain-js 1.2.4 crashes on it; Core ADR-0002)', async () => {
     put('scripts/a.fountain', 'INT. A - DAY\n\nMARA\n~Sing a song\n\nShe stops.\n');
     put('scripts/b.fountain', SCRIPT);
 
     const project = await loadProject(root);
 
-    expect(project.scripts.map((script) => script.script.id)).toEqual(['b']);
-    expect(project.issues).toEqual([expect.objectContaining({ kind: 'script', reason: 'parse-error' })]);
+    expect(project.scripts.map((script) => script.script.id)).toEqual(['a', 'b']);
+    expect(project.issues).toEqual([]);
   });
 
   it('never writes anything, not even sidecars', async () => {

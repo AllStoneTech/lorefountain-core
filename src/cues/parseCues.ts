@@ -70,7 +70,8 @@ export interface CueEntry {
   line: number;
 }
 
-const CUE_LINE = /^[ \t]*(SFX|MUSIC|AMB):[ \t]*(.*)$/;
+/** A cue line, optionally forced as Action with Fountain's leading `!` (ADR-0002). Group 1 is the type, group 2 the rest. */
+const CUE_LINE = /^[ \t]*!?(SFX|MUSIC|AMB):[ \t]*(.*)$/;
 
 // "SOURCE BED" is listed before "BED" for longest-match-first readability,
 // though it's not actually load-bearing: none of these four alternatives

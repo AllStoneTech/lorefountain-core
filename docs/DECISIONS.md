@@ -4,6 +4,38 @@ Decisions about Core itself. Earlier decisions (ADR-0038 shot maps, ADR-0040 Fou
 
 ---
 
+## ADR-0002 — Forced action (`!`) on convention lines, a shared misread check, and two `fountain-js` workarounds
+
+**Date:** 2026-11-12 · **Status:** Accepted (owner approved on 2026-11-11 and 2026-11-12)
+
+Ground rule, as always: **extend Fountain, never change it.** Everything here makes LoreFountain read standard Fountain more faithfully. None of it adds syntax.
+
+### 1. A leading `!` is allowed on every convention line
+
+Fountain 1.1 forces a line to be Action with a leading `!`, which every 1.1 app strips before printing. That is the standard way to stop an all-caps convention line (`SHOT: CLOSE-UP`) with text directly under it from being read as a character cue. `matchPrefixLine`, `matchComicLine` and the cue extractor accept one optional `!` before the keyword (after any indentation, as before), and report it as `forced: true`. A forced line is action in every Fountain app, so it is never reported as misread.
+
+Rejected: allowing a lowercase keyword (`Shot:`). It would change the convention, and a mixed-case line is only safe by accident.
+
+### 2. One misread check for every script
+
+`fountain/misread.ts` finds convention lines that standard Fountain reads as a character cue: no lowercase letter, not forced, a blank line (or the file start) before, and a non-blank line directly after. Comics used to have their own copy in `comics/pageMap.ts`, which now calls the shared one. The extension reports it on every script. LoreFountain keeps reading these lines as convention lines (the `scanScript` rescue), so shot maps and cues stay right while the writer fixes them.
+
+### 3. Position recovery tolerates what `fountain-js` strips
+
+`fountain-js` tokens carry no positions, so `mapTokensToPositions` searches for each token's text in the source. Token text differs from the source when `fountain-js` strips or rewrites it: a leading `!`, `@`, `.`, `>` or `~` on a line, a backslash escape (`\*`), a tab (becomes four spaces), and a two-space line inside dialogue (becomes empty). Those tokens used to be skipped silently, so a forced block vanished from shot maps and cues. The search now tries the exact text first and then a tolerant pattern that allows exactly those differences.
+
+### 4. A lyric directly under a character cue no longer crashes the parser
+
+`fountain-js` 1.2.4 throws when the first line of a speech is a `~` lyric (`DialogueBlock` reads `previousToken.type` with no previous token). Lyrics there are valid Fountain, and the writer is not asked to add a parenthetical. `parseFountain` parses normally and, only if that throws, parses again with those lyric markers swapped for a same-length placeholder (so every line and offset stays put), then turns the placeholder lines back into lyric tokens. A script that parses today is untouched.
+
+The upstream fix is one character (`previousToken?.type`). Reporting it to `fountain-js` is a public post, so it waits for the owner's go-ahead. When an upstream release fixes it, the fallback can go.
+
+### 5. Backslash escapes are an output concern
+
+`fountain-js` drops the backslash from `\*` and `\_`, so in token text an escaped `*word*` and real emphasis look the same. LoreFountain's sidecars and fingerprints store plain token text and never render emphasis, so nothing shown today is wrong. Exports that render emphasis (the script export work) format from the source text, not from token text.
+
+---
+
 ## ADR-0001 — The comic script convention: `PAGE:` / `PANEL:`
 
 **Date:** 2026-11-11 · **Status:** Proposed (owner to confirm the marked decisions)

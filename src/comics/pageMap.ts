@@ -12,13 +12,13 @@
  * Issues (all collect-and-continue; nothing here changes what is read):
  * - Warnings: `panel-before-page`, `content-outside-panel`,
  *   `missing-page-label` (from `parseComic.ts`), `duplicate-page-number`,
- *   `page-out-of-order`.
+ *   `page-out-of-order`, and `misread-as-character` (a comic line other
+ *   Fountain apps would print as a character cue; Core ADR-0002. The shot
+ *   map reports the same for `SHOT:`, `SFX:` and the other prefix lines).
  * - Info: `page-number-gap`, `empty-page`, `missing-panel-description`,
- *   `splash-multiple-panels`, `spread-without-range`, the word-budget notes
- *   `many-panels`, `many-balloons`, `long-balloon`, `long-panel-dialogue`
- *   (thresholds in {@link PageLimits}; they never fail a run), and
- *   `misread-as-character` (a convention line other Fountain apps would print
- *   as a character cue).
+ *   `splash-multiple-panels`, `spread-without-range`, and the word-budget
+ *   notes `many-panels`, `many-balloons`, `long-balloon`, `long-panel-dialogue`
+ *   (thresholds in {@link PageLimits}; they never fail a run).
  *
  * Gotchas:
  * - `entities` are mentions in a panel's own direction text (description,
@@ -30,8 +30,7 @@
  *   sequence checks.
  */
 
-import { matchComicLine, matchPrefixLine } from '../fountain/conventions';
-import { blankBoneyard } from '../fountain/boneyard';
+import { findMisreadConventionLines } from '../fountain/misread';
 import { extractMentionTargets, type MentionCandidate } from '../index/mentions';
 import type { ValidationIssue } from '../model/errors';
 import type { ShotMapEntity } from '../shots/shotMap';
@@ -178,7 +177,7 @@ export function buildPageMap(
   const issues: ScriptPageIssue[] = [...structure.issues];
 
   if (structure.hasPages) {
-    issues.push(...pageIssues(pages, limits), ...misreadIssues(scriptText, pages));
+    issues.push(...pageIssues(pages, limits), ...misreadIssues(scriptText));
   }
   issues.sort((a, b) => a.line - b.line);
 
@@ -384,29 +383,19 @@ function pageRef(page: PageMapEntry): string {
 }
 
 /**
- * Convention lines that Fountain itself reads as character cues: no
- * lowercase letter, a blank line (or the file start) before, and text directly
- * after. Other Fountain apps would print them as speakers. LoreFountain still
- * reads them correctly (`shots/scanScript.ts`), so this is a note, not an error.
+ * Comic lines (`PAGE:`, `PANEL:`, `LAYOUT:`, `CAPTION:`) that Fountain itself
+ * reads as character cues, from the shared check (`fountain/misread.ts`, Core
+ * ADR-0002). Other Fountain apps would print them as speakers. LoreFountain
+ * still reads them correctly (`shots/scanScript.ts`). Prefix lines are the
+ * shot map's to report, so a line is never reported twice.
  */
-function misreadIssues(scriptText: string, pages: readonly PageMapEntry[]): ScriptPageIssue[] {
-  const firstPageLine = pages.find((page) => !page.implicit)?.lines.start ?? pages[0]?.lines.start ?? 0;
-  const lines = blankBoneyard(scriptText).split(/\r\n|\r|\n/);
-  const isBlank = (index: number): boolean => (lines[index] ?? '').trim() === '';
-  const issues: ScriptPageIssue[] = [];
-  for (let index = Math.min(firstPageLine, lines.length); index < lines.length; index += 1) {
-    const text = lines[index];
-    const match = matchComicLine(text) ?? matchPrefixLine(text);
-    if (!match || /\p{Ll}/u.test(text)) continue;
-    if (!(index === 0 || isBlank(index - 1)) || index + 1 >= lines.length || isBlank(index + 1)) continue;
-    issues.push(
-      issue(
-        'misread-as-character',
-        'info',
-        index,
-        `"${text.trim()}" (line ${index + 1}) is all capitals with text directly under it, so other Fountain apps read it as a character cue. Leave a blank line after it, or keep a lowercase word in the line.`,
-      ),
-    );
-  }
-  return issues;
+function misreadIssues(scriptText: string): ScriptPageIssue[] {
+  return findMisreadConventionLines(scriptText, { prefix: false, comic: true }).map(({ line, text }) =>
+    issue(
+      'misread-as-character',
+      'warning',
+      line,
+      `"${text}" (line ${line + 1}) is all capitals with text directly under it, so other Fountain apps read it as a character cue. Start it with "!" to force it as action, or leave a blank line after it.`,
+    ),
+  );
 }

@@ -44,11 +44,28 @@ describe('matchLeadingTag', () => {
 
 describe('matchPrefixLine', () => {
   it.each(['SHOT', 'POSE', 'LIGHT', 'DURATION', 'PAUSE', 'SFX', 'MUSIC', 'AMB'])('recognizes %s:', (keyword) => {
-    expect(matchPrefixLine(`  ${keyword}: something`)).toEqual({ keyword, rest: 'something' });
+    expect(matchPrefixLine(`  ${keyword}: something`)).toEqual({ keyword, rest: 'something', forced: false });
   });
 
   it('recognizes a bare prefix with nothing after it', () => {
-    expect(matchPrefixLine('PAUSE:')).toEqual({ keyword: 'PAUSE', rest: '' });
+    expect(matchPrefixLine('PAUSE:')).toEqual({ keyword: 'PAUSE', rest: '', forced: false });
+  });
+
+  it('accepts a leading forced-action ! and reports it (Core ADR-0002)', () => {
+    expect(matchPrefixLine('!SHOT: CLOSE-UP')).toEqual({ keyword: 'SHOT', rest: 'CLOSE-UP', forced: true });
+    expect(matchPrefixLine('  !SFX: [door] a door')).toEqual({ keyword: 'SFX', rest: '[door] a door', forced: true });
+  });
+
+  it('allows only one ! directly before the keyword', () => {
+    expect(matchPrefixLine('!!SHOT: WIDE')).toBeUndefined();
+    expect(matchPrefixLine('! SHOT: WIDE')).toBeUndefined();
+  });
+
+  it('reads cues on forced lines too', () => {
+    expect(extractCues('!SFX: [door] a door\n!MUSIC: STING the reveal\n')).toEqual([
+      expect.objectContaining({ type: 'sfx', tag: 'door', description: 'a door', line: 0 }),
+      expect.objectContaining({ type: 'music', role: 'STING', description: 'the reveal', line: 1 }),
+    ]);
   });
 
   it('is case-sensitive and requires the colon', () => {
