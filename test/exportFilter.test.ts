@@ -209,8 +209,22 @@ describe('exportSettingsFromConfig', () => {
       format: 'fdx',
       paper: 'a4',
       titlePage: false,
+      layout: 'auto',
+      comicPageSides: false,
+      language: 'en',
       custom,
     });
+  });
+
+  it('reads the layout, page sides and language (ADR-0004)', () => {
+    const settings = exportSettingsFromConfig({ export: { layout: 'comic', comicPageSides: true, language: 'yo' } });
+    expect(settings).toMatchObject({ layout: 'comic', comicPageSides: true, language: 'yo' });
+  });
+
+  it('rejects a language that is not a BCP 47 tag', () => {
+    expect(exportSettingsFromConfig({ export: { language: 'not a tag!' } }).language).toBe('en');
+    expect(exportSettingsFromConfig({ export: { language: '' } }).language).toBe('en');
+    expect(exportSettingsFromConfig({ export: { layout: 'manga' } }).layout).toBe('auto');
   });
 
   it('falls back field by field, never failing the whole section', () => {

@@ -2,7 +2,9 @@
  * The `.html` export writer (Core ADR-0003, section 6): one self-contained,
  * accessible page with an embedded stylesheet, print rules and no scripts.
  *
- * Exports {@link writeHtml} and {@link HtmlOptions}.
+ * Exports {@link writeHtml}, {@link HtmlOptions}, {@link escapeHtml},
+ * {@link runsHtml} and {@link titlePageHtml} (the last two shared with the
+ * comic writer).
  *
  * Gotchas:
  * - Sections, synopses and notes are shown on screen in a muted style and
@@ -62,8 +64,13 @@ export function writeHtml(screenplay: Screenplay, options: HtmlOptions): string 
   ].join('\n');
 }
 
-/** The title page: the title as the page's one `h1`, then the other entries. */
-function titlePageHtml(screenplay: Screenplay): string {
+/**
+ * The title page: the title as the page's one `h1`, then the other entries.
+ *
+ * @param screenplay - The script; only its title page is read.
+ * @returns The title page's HTML.
+ */
+export function titlePageHtml(screenplay: Pick<Screenplay, 'titlePage'>): string {
   const parts = ['<header class="title-page">'];
   for (const entry of screenplay.titlePage) {
     const lines = entry.lines.map(runsHtml).join('<br>');
@@ -121,8 +128,13 @@ function dialogueHtml(block: DialogueBlock): string {
   return parts.join('\n');
 }
 
-/** A line of runs as inline HTML: `strong`, `em`, `u`, and a muted span for notes. */
-function runsHtml(line: RunLine): string {
+/**
+ * A line of runs as inline HTML: `strong`, `em`, `u`, and a muted span for notes.
+ *
+ * @param line - The runs.
+ * @returns Escaped inline HTML.
+ */
+export function runsHtml(line: RunLine): string {
   return line
     .map((run) => {
       let html = escapeHtml(run.text);
