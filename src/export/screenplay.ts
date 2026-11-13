@@ -3,7 +3,8 @@
  * ADR-0006, section 4): a title page and a list of elements, each element's
  * text as styled runs.
  *
- * Exports {@link buildScreenplay}, {@link parseInline} and the model types.
+ * Exports {@link buildScreenplay}, {@link parseInline}, {@link shieldEscapes},
+ * {@link plainText} and the model types.
  *
  * Gotchas:
  * - Build it from {@link filterScript}'s output: the model includes whatever
@@ -120,9 +121,7 @@ const TITLE_LABELS: Readonly<Record<string, string>> = {
  * @returns The title page and body elements.
  */
 export function buildScreenplay(fountainText: string): Screenplay {
-  let shielded = fountainText;
-  for (const [escape, stand] of ESCAPES) shielded = shielded.split(escape).join(stand);
-  const tokens = parseFountain(shielded);
+  const tokens = parseFountain(shieldEscapes(fountainText));
 
   const titlePage: TitlePageEntry[] = [];
   const elements: ScreenplayElement[] = [];
@@ -221,6 +220,20 @@ export function buildScreenplay(fountainText: string): Screenplay {
     flushPendingLeft();
     elements.push(element);
   }
+}
+
+/**
+ * Replace backslash escapes (`\*`, `\_`, `\\`) with private stand-ins that
+ * `fountain-js` and emphasis parsing ignore. {@link parseInline} turns them
+ * back into the literal characters.
+ *
+ * @param text - Fountain text.
+ * @returns The text with every escape shielded.
+ */
+export function shieldEscapes(text: string): string {
+  let shielded = text;
+  for (const [escape, stand] of ESCAPES) shielded = shielded.split(escape).join(stand);
+  return shielded;
 }
 
 /**

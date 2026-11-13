@@ -3,8 +3,10 @@
  * screenplay model laid out on a monospaced character grid, the way
  * screenplays are typeset.
  *
- * Exports {@link layoutScreenplay}, {@link displayWidth}, {@link wrapRuns}
- * and the layout types.
+ * Exports {@link layoutScreenplay}, {@link displayWidth}, {@link wrapRuns},
+ * {@link paperGeometry}, {@link printedRuns}, {@link numberPages},
+ * {@link titlePageLayout} and the
+ * layout types.
  *
  * Grid: Courier 12 pt is 10 characters per inch and 6 lines per inch, so a
  * column is 0.1 in (7.2 pt) and a row 1/6 in (12 pt). Rows and columns count
@@ -50,6 +52,8 @@ export interface LayoutPage {
   /** The printed page number; 0 for the title page. */
   number: number;
   lines: LayoutLine[];
+  /** Outline entries that start on this page, in order: scene headings or comic pages (ADR-0008, section 5). */
+  bookmarks?: string[];
 }
 
 /** The page grid in inches and character cells. */
@@ -116,6 +120,8 @@ interface Block {
   spaceBefore: number;
   /** For a speech: the cue to repeat, as `NAME (CONT'D)`, when it continues on the next page. */
   continuedCue?: RunLine;
+  /** An outline entry for the page the block starts on. */
+  bookmark?: string;
 }
 
 /**
@@ -126,9 +132,8 @@ interface Block {
  * @returns The page geometry and every page's positioned lines.
  */
 export function layoutScreenplay(screenplay: Screenplay, options: LayoutOptions): ScreenplayLayout {
-  const paper = PAPER[options.paper];
-  const geometry: PageGeometry = { paper: options.paper, widthPt: paper.width, heightPt: paper.height, colPt: COL_PT, rowPt: ROW_PT };
-  const totalRows = Math.floor(paper.height / ROW_PT);
+  const geometry = paperGeometry(options.paper);
+  const totalRows = Math.floor(geometry.heightPt / ROW_PT);
   const bodyRows = totalRows - TOP_ROW - BOTTOM_MARGIN_ROWS;
 
   const pages: LayoutPage[] = [];
@@ -138,6 +143,17 @@ export function layoutScreenplay(screenplay: Screenplay, options: LayoutOptions)
   const blocks = toBlocks(screenplay, options.sceneNumbers ?? true);
   pages.push(...paginate(blocks, bodyRows));
   return { geometry, pages };
+}
+
+/**
+ * The Courier grid for a paper size.
+ *
+ * @param paper - The paper size.
+ * @returns Page size in points and the 7.2 × 12 pt cell.
+ */
+export function paperGeometry(paper: PaperSize): PageGeometry {
+  const size = PAPER[paper];
+  return { paper, widthPt: size.width, heightPt: size.height, colPt: COL_PT, rowPt: ROW_PT };
 }
 
 /** Turn the model's printed elements into blocks. */
@@ -152,7 +168,9 @@ function toBlocks(screenplay: Screenplay, sceneNumbers: boolean): Block[] {
           lines.push({ col: LEFT_NUMBER_COL + Math.max(0, 4 - displayWidth(element.number)), runs: label, role: 'other' });
           lines.push({ col: RIGHT_NUMBER_COL, runs: label, role: 'other' });
         }
-        blocks.push({ kind: 'heading', lines, spaceBefore: 1 });
+        const heading = plainText(element.runs).trim();
+        const bookmark = element.number && heading ? `${element.number}. ${heading}` : heading;
+        blocks.push({ kind: 'heading', lines, spaceBefore: 1, ...(bookmark ? { bookmark } : {}) });
         break;
       }
       case 'action': {
@@ -300,6 +318,7 @@ function paginate(blocks: readonly Block[], bodyRows: number): LayoutPage[] {
       const next = blocks[index + 1];
       const follow = next && next.kind !== 'page-break' ? Math.min(2, rowsOf(next.lines)) + next.spaceBefore : 0;
       if (used > 0 && rows + follow > free(block.spaceBefore)) newPage();
+      if (block.bookmark) (page.bookmarks ??= []).push(block.bookmark);
       place(block.lines, block.spaceBefore);
       continue;
     }
@@ -323,12 +342,7 @@ function paginate(blocks: readonly Block[], bodyRows: number): LayoutPage[] {
   }
   if (page.lines.length > 0 || pages.length === 0) pages.push(page);
 
-  // Page numbers from page 2.
-  for (const finished of pages) {
-    if (finished.number < 2) continue;
-    const label = `${finished.number}.`;
-    finished.lines.unshift({ row: PAGE_NUMBER_ROW, col: RIGHT_EDGE_COL - displayWidth(label), runs: [{ text: label }] });
-  }
+  numberPages(pages, RIGHT_EDGE_COL);
   return pages;
 
   /** Split an action block, keeping two lines on each side, or move it whole. */
@@ -389,6 +403,31 @@ function paginate(blocks: readonly Block[], bodyRows: number): LayoutPage[] {
   }
 }
 
+/**
+ * Print page numbers (`2.`) top right, from page 2.
+ *
+ * @param pages - The finished pages; changed in place.
+ * @param rightEdgeCol - The column the number ends at.
+ */
+export function numberPages(pages: LayoutPage[], rightEdgeCol: number): void {
+  for (const finished of pages) {
+    if (finished.number < 2) continue;
+    const label = `${finished.number}.`;
+    finished.lines.unshift({ row: PAGE_NUMBER_ROW, col: rightEdgeCol - displayWidth(label), runs: [{ text: label }] });
+  }
+}
+
+/**
+ * The title page lines for a screenplay or comic script.
+ *
+ * @param titlePage - The title-page entries.
+ * @param paper - The paper size.
+ * @returns The positioned lines.
+ */
+export function titlePageLayout(titlePage: Screenplay['titlePage'], paper: PaperSize): LayoutLine[] {
+  return titlePageLines({ titlePage, elements: [] }, Math.floor(PAPER[paper].height / ROW_PT));
+}
+
 /** The title page: title block centered a third of the way down, contact details bottom left, dates bottom right. */
 function titlePageLines(screenplay: Screenplay, totalRows: number): LayoutLine[] {
   const lines: LayoutLine[] = [];
@@ -427,8 +466,13 @@ function titlePageLines(screenplay: Screenplay, totalRows: number): LayoutLine[]
   return lines;
 }
 
-/** A line's runs without notes (never printed). */
-function printedRuns(runs: RunLine): RunLine {
+/**
+ * A line's runs without notes (never printed).
+ *
+ * @param runs - The runs.
+ * @returns The runs that print.
+ */
+export function printedRuns(runs: RunLine): RunLine {
   return runs.filter((run) => !run.note);
 }
 

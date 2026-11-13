@@ -4,16 +4,23 @@
  * writer's Custom preset, the preset and format last used, and the paper size.
  *
  * Exports {@link exportSettingsSchema}, {@link ExportSettings},
- * {@link EXPORT_FORMATS}, {@link ExportFormat}, {@link DEFAULT_EXPORT_SETTINGS}
- * and {@link exportSettingsFromConfig}.
+ * {@link EXPORT_FORMATS}, {@link ExportFormat}, {@link EXPORT_LAYOUTS},
+ * {@link ExportLayoutSetting}, {@link ExportLayout},
+ * {@link DEFAULT_EXPORT_SETTINGS}, {@link exportSettingsFromConfig},
+ * {@link defaultLayoutForProjectType}, {@link resolveExportLayout} and
+ * {@link languageSchema}.
  *
  * Gotchas:
  * - The config schema keeps `export` as unknown, and it is validated here
  *   field by field: a bad export value falls back to its default and never
  *   stops the rest of the config (folder names) from loading.
+ * - {@link defaultLayoutForProjectType} is the one place a `project_type`
+ *   (ADR-0007) picks a layout: a `comic` project defaults to the comic layout,
+ *   and every other type leaves it to the script (ADR-0008, section 1).
  */
 
 import { z } from 'zod';
+import type { ProjectType } from '../config/projectType';
 import type { LoreFountainConfig } from '../config/readConfig';
 import { EXPORT_PRESET_IDS, exportContentSchema, presetContent, type ExportContent, type ExportPresetId } from './options';
 
@@ -22,6 +29,28 @@ export const EXPORT_FORMATS = ['pdf', 'fountain', 'fdx', 'html', 'docx', 'transc
 
 /** One export format. */
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
+/** The page layouts a writer can choose: automatic, or one of the two layouts. */
+export const EXPORT_LAYOUTS = ['auto', 'screenplay', 'comic'] as const;
+
+/** A layout setting, `auto` included. */
+export type ExportLayoutSetting = (typeof EXPORT_LAYOUTS)[number];
+
+/** A resolved layout. */
+export type ExportLayout = Exclude<ExportLayoutSetting, 'auto'>;
+
+/** A BCP 47 language tag that `Intl` accepts, e.g. `en`, `en-GB`, `yo`. */
+export const languageSchema = z
+  .string()
+  .min(1)
+  .max(35)
+  .refine((tag) => {
+    try {
+      return Intl.getCanonicalLocales(tag).length === 1;
+    } catch {
+      return false;
+    }
+  }, 'Expected a language tag such as en, en-GB or yo.');
 
 /** The `export` section of `lorefountain.config.json`. */
 export const exportSettingsSchema = z.strictObject({
@@ -33,6 +62,12 @@ export const exportSettingsSchema = z.strictObject({
   paper: z.enum(['letter', 'a4']),
   /** Start PDF and Word exports with the title page. */
   titlePage: z.boolean(),
+  /** The page layout for PDF, Word and HTML. */
+  layout: z.enum(EXPORT_LAYOUTS),
+  /** Mark comic pages LEFT or RIGHT. */
+  comicPageSides: z.boolean(),
+  /** The language exports declare, as a BCP 47 tag. */
+  language: languageSchema,
   /** The writer's own Custom preset. */
   custom: exportContentSchema,
 });
@@ -46,6 +81,9 @@ export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   format: 'pdf',
   paper: 'letter',
   titlePage: true,
+  layout: 'auto',
+  comicPageSides: false,
+  language: 'en',
   custom: presetContent('custom'),
 };
 
@@ -69,6 +107,40 @@ export function exportSettingsFromConfig(config: LoreFountainConfig): ExportSett
     format: pick<ExportFormat>(exportSettingsSchema.shape.format, raw.format, DEFAULT_EXPORT_SETTINGS.format),
     paper: pick(exportSettingsSchema.shape.paper, raw.paper, DEFAULT_EXPORT_SETTINGS.paper),
     titlePage: pick(exportSettingsSchema.shape.titlePage, raw.titlePage, DEFAULT_EXPORT_SETTINGS.titlePage),
+    layout: pick<ExportLayoutSetting>(exportSettingsSchema.shape.layout, raw.layout, DEFAULT_EXPORT_SETTINGS.layout),
+    comicPageSides: pick(exportSettingsSchema.shape.comicPageSides, raw.comicPageSides, DEFAULT_EXPORT_SETTINGS.comicPageSides),
+    language: pick(languageSchema, raw.language, DEFAULT_EXPORT_SETTINGS.language),
     custom: pick<ExportContent>(exportContentSchema, raw.custom, { ...DEFAULT_EXPORT_SETTINGS.custom }),
   };
+}
+
+/**
+ * The layout a project type implies, when it implies one.
+ *
+ * @param projectType - The project's type (`projectTypeFromConfig`), when the project has one.
+ * @returns `comic` for a comic project; `undefined` otherwise, so the script decides.
+ */
+export function defaultLayoutForProjectType(projectType: ProjectType | undefined): ExportLayout | undefined {
+  return projectType === 'comic' ? 'comic' : undefined;
+}
+
+/** What {@link resolveExportLayout} knows about the project and script. */
+export interface LayoutContext {
+  /** The project's type, when it has one. */
+  projectType?: ProjectType;
+  /** Whether the script has at least one explicit `PAGE:` line (`hasComicPages`). */
+  hasComicPages: boolean;
+}
+
+/**
+ * Resolve a layout setting for one script: an explicit choice wins, then the
+ * project type, then whether the script is written with `PAGE:` lines.
+ *
+ * @param setting - The writer's layout setting.
+ * @param context - The project type and whether the script has comic pages.
+ * @returns The layout to use.
+ */
+export function resolveExportLayout(setting: ExportLayoutSetting, context: LayoutContext): ExportLayout {
+  if (setting !== 'auto') return setting;
+  return defaultLayoutForProjectType(context.projectType) ?? (context.hasComicPages ? 'comic' : 'screenplay');
 }

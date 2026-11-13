@@ -7,6 +7,8 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 ### Added
 
 - **Project types** (ADR-0007): `config/projectType` with the eight `project_type` values (`screenplay`, `tv_series`, `serialized_universe`, `audio_drama`, `comic`, `prose`, `tabletop`, `custom`), a `PROJECT_TYPE_PROFILES` entry for each, `projectTypeFromConfig` (tolerant: a bad value is reported, never thrown) and `describeProjectType`. `lorefountain.config.json` may now carry `project_type`.
+- **Comic script export layout** (ADR-0008): `export/comic` (the comic document model from `extractComic`: page headings such as `PAGE ONE` and `PAGES TWO–THREE`, panel counts, optional left/right marks, panel direction, and lettering numbered per page; `comicExportContent` keeps the comic structure whatever the preset; `hasComicPages`), `export/comicLayout` (comic pages on the Courier grid, in the same output shape as the screenplay layout, with `(CONTINUED)` sheets), and `export/comicHtml`. `export/settings` gains `layout` (`auto`, `screenplay`, `comic`), `comicPageSides` and `language` (a BCP 47 tag), plus `resolveExportLayout` and `defaultLayoutForProjectType`, which reads `project_type` (ADR-0007): a `comic` project defaults to the comic layout.
+- **PDF bookmarks:** layout pages carry `bookmarks` (scene headings with their numbers, or comic pages). `export/layout` also exports `paperGeometry`, `printedRuns`, `numberPages` and `titlePageLayout`; `export/html` exports `runsHtml` and `titlePageHtml`; `export/screenplay` exports `shieldEscapes`.
 
 ## [0.2.0] - 2026-11-13
 

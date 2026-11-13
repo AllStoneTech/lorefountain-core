@@ -4,6 +4,42 @@ Decisions about Core itself. Earlier decisions (ADR-0038 shot maps, ADR-0040 Fou
 
 ---
 
+## ADR-0008 — Comic script layout for exports, PDF bookmarks and the export language
+
+**Date:** 2026-11-13 · **Status:** Accepted (owner approved the design on 2026-11-13). Extension side: VSCE ADR-0052.
+
+A comic script written with the Page/Panel convention (ADR-0001) used to export as screenplay text: `PAGE:` and `PANEL:` printed as action, and balloons printed as centred dialogue. An artist and letterer expect the comic "full script" layout instead. The extension's PDF, Word and HTML exports can now use it.
+
+### 1. A second layout, chosen per export
+
+The export settings gain `layout`: `auto` (the default), `screenplay` or `comic`. `auto` uses the project's `project_type` when it has one (ADR-0007; `defaultLayoutForProjectType` maps `comic` to the comic layout and every other type to none), and otherwise uses `comic` when the script has at least one explicit `PAGE:` line. The layout applies to PDF, Word and HTML. `.fountain` and the transcript have no layout. `.fdx` stays a screenplay, because Final Draft has no standard comic format.
+
+### 2. The comic document model
+
+`export/comic` builds the model from the filtered text with `extractComic` (ADR-0001), so it agrees with the page map. The structure is fixed: comic layout always keeps `PAGE:`, `PANEL:`, `LAYOUT:`, `CAPTION:` and `SFX:` lines, whatever the preset says, because without them there is nothing to lay out. Shot lines, tags, notes and boneyard follow the export options as before, so `SHOT:` lines from narrated comics are left out unless chosen. Text keeps its inline formatting (the same runs as the screenplay model), and backslash escapes stay literal.
+
+Per page: a heading (`PAGE ONE`, `PAGES TWO–THREE` for a spread, a written label such as `INSIDE FRONT COVER`), the panel count, any modifiers (`SPLASH`, `TURN`), an optional left/right mark, then page notes and the page `LAYOUT:`. Per panel: `PANEL 1`, its `LAYOUT:`, the description, the `SHOT:`/`POSE:`/`LIGHT:` lines when kept, further direction, and the lettering. Lettering is numbered per page, restarting at 1, so a letterer can match each balloon to the art: `CAPTION`, `CAPTION (NAME)`, `NAME`, `NAME (WHISPER)` with any parenthetical before the words, and `SFX`. Text before the first `PAGE:` or `PANEL:` is not part of the comic and is left out, as the page map does. Scene headings are not printed.
+
+### 3. Left and right pages
+
+With `comicPageSides` on, each page is marked `(LEFT)` or `(RIGHT)`. Page one is a right-hand page, so odd pages are right and even pages left; a spread is marked `(SPREAD)`. It is off by default, because many publishers number from a cover or an inside cover.
+
+### 4. Comic page layout for the PDF
+
+`export/comicLayout` uses the same Courier grid and output shape as the screenplay layout, so the PDF renderer draws both unchanged. Margins are 1 inch on every side. The page heading is bold and underlined, the panel heading bold, descriptions run the full 6.5-inch measure, and lettering hangs: number, label, then the words in a column of their own. Each comic page starts a new sheet. A comic page longer than a sheet continues under `PAGE ONE (CONTINUED)`, a panel heading never ends a sheet, and a lettering entry moves whole unless it is longer than a sheet. Sheets are numbered top right from sheet 2.
+
+### 5. PDF bookmarks
+
+Both layouts list bookmarks per sheet: scene headings (with their numbers) for a screenplay, comic pages for a comic. The renderer turns them into the PDF's outline, so a reader can jump to a scene or a page.
+
+### 6. The export language
+
+The export settings gain `language`, a BCP 47 tag (default `en`), validated with `Intl.getCanonicalLocales`. HTML, PDF and Word declare it, so screen readers and spell checkers use the right language. It is set in the config, not the dialog.
+
+Revisit when: a publisher needs another comic layout (Marvel method, per-panel word counts), or audio drama projects need a radio script layout.
+
+---
+
 ## ADR-0007 — `project_type`: what kind of writing project this is
 
 **Date:** 2026-11-13 · **Status:** Accepted (owner approved on 2026-11-13). Extension side: VSCE ADR-0051.
