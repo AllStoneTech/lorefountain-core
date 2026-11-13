@@ -118,3 +118,82 @@ describe('mapTokensToPositions — multi-line tokens', () => {
     expect(dialogue?.line).toBe(7);
   });
 });
+
+describe('parseFountain — the fountain-js lyric crash (Core ADR-0005)', () => {
+  const types = (text: string): string[] => parseFountain(text).map((token) => `${token.type}=${token.text ?? ''}`);
+
+  it('reads a lyric directly under a character cue as lyrics, not a crash', () => {
+    expect(types('INT. A - DAY\n\nWONKA\n~Come with me\n~and you\'ll be\nIn a world.\n')).toEqual([
+      'scene_heading=INT. A - DAY',
+      'dialogue_begin=',
+      'character=WONKA',
+      "lyrics=Come with me\nand you'll be",
+      'dialogue=In a world.',
+      'dialogue_end=',
+    ]);
+  });
+
+  it('reads it the same as the parenthetical form fountain-js already handles', () => {
+    const withCue = types('MARA\n~Sing a song\n').filter((t) => t.startsWith('lyrics'));
+    const withParenthetical = types('MARA\n(singing)\n~Sing a song\n').filter((t) => t.startsWith('lyrics'));
+    expect(withCue).toEqual(withParenthetical);
+  });
+
+  it('leaves a script fountain-js parses untouched, including a lyric after action', () => {
+    expect(types('He hums.\n~La la\n')).toEqual(['action=He hums.\n~La la']);
+    expect(types('~Willy Wonka!\n~Willy Wonka!\n')).toEqual(['lyrics=Willy Wonka!\nWilly Wonka!']);
+  });
+
+  it('keeps a ~ that fountain-js would keep, in a script that needed the retry', () => {
+    const text = 'MARA\n~Sing\n\nHe hums.\n~La la\n';
+    expect(types(text)).toContain('action=He hums.\n~La la');
+  });
+});
+
+describe('mapTokensToPositions — text fountain-js rewrites (Core ADR-0005)', () => {
+  const lineOf = (text: string, type: string): number | undefined =>
+    mapTokensToPositions(text, parseFountain(text)).find((p) => p.token.type === type)?.line;
+
+  it('finds a forced (!) multi-line action block', () => {
+    const text = 'INT. A - DAY\n\n!SHOT: CLOSE-UP\n!POSE: SANGO KNEELS\n\nShe waits.\n';
+    const positioned = mapTokensToPositions(text, parseFountain(text));
+    expect(positioned.map((p) => [p.token.type, p.line])).toEqual([
+      ['scene_heading', 0],
+      ['action', 2],
+      ['action', 5],
+    ]);
+  });
+
+  it('finds action with a backslash escape', () => {
+    const text = 'Rain.\n\nHe walks \\*not\\* away.\n\nEnd.\n';
+    const positioned = mapTokensToPositions(text, parseFountain(text));
+    expect(positioned.map((p) => p.line)).toEqual([0, 2, 4]);
+  });
+
+  it('finds tab-indented action', () => {
+    expect(lineOf('Rain.\n\n\tIndented\n', 'action')).toBe(0);
+    const text = 'Rain.\n\n\tIndented\n';
+    expect(mapTokensToPositions(text, parseFountain(text)).map((p) => p.line)).toEqual([0, 2]);
+  });
+
+  it('finds dialogue with a two-space blank line, and the cue after it', () => {
+    const text = 'DEALER\nTen.\n  \nTwenty.\n\nMARA\nNo.\n';
+    const positioned = mapTokensToPositions(text, parseFountain(text));
+    expect(positioned.map((p) => [p.token.type, p.line])).toEqual([
+      ['character', 0],
+      ['dialogue', 1],
+      ['character', 5],
+      ['dialogue', 6],
+    ]);
+  });
+
+  it('finds a multi-line action block in a file with Windows line endings', () => {
+    const text = 'Rain.\r\nMore rain.\r\n\r\nMARA\r\nHi.\r\n';
+    const positioned = mapTokensToPositions(text, parseFountain(text));
+    expect(positioned.map((p) => [p.token.type, p.line])).toEqual([
+      ['action', 0],
+      ['character', 3],
+      ['dialogue', 4],
+    ]);
+  });
+});

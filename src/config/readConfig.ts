@@ -43,6 +43,8 @@ export const loreFountainConfigSchema = z
      * part by part and reports what it drops.
      */
     comic: z.unknown().optional(),
+    /** Script export settings, validated field by field by `export/settings.ts` so a bad value never blocks the rest of the config. */
+    export: z.unknown().optional(),
   })
   .catchall(z.unknown());
 

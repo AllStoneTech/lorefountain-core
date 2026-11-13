@@ -23,6 +23,10 @@
  *   lines ending in `TO:`. Either a standalone line like `FADE IN:` that
  *   Fountain reads as action, or `FADE OUT.`/`FADE TO BLACK.`/`CUT TO
  *   BLACK.`, which `fountain-js` detects but other Fountain apps don't.
+ * - `misread-as-character` (warning): an all-caps prefix line with a blank
+ *   line above and text directly under it, which standard Fountain reads as
+ *   a character cue (`fountain/misread.ts`, Core ADR-0005). LoreFountain still
+ *   reads it as a convention line.
  *
  * Per shot, `spoken` holds every dialogue line, parenthetical (pauses and
  * other directions, wording kept), `PAUSE:` and lyric line, each with its
@@ -41,6 +45,7 @@
 
 import { extractCues } from '../cues/parseCues';
 import { parseDurationSeconds } from '../fountain/conventions';
+import { findMisreadConventionLines } from '../fountain/misread';
 import { extractMentionTargets, type MentionCandidate } from '../index/mentions';
 import type { ValidationIssue } from '../model/errors';
 import { parseShotText } from './parseShots';
@@ -182,7 +187,7 @@ export interface ShotMapEntry {
 
 /** A per-script issue found while building the shot map. */
 export interface ScriptShotIssue extends ValidationIssue {
-  code: 'orphaned-parenthetical' | 'bare-pause-line' | 'ambiguous-location' | 'unforced-transition' | 'panels-not-derived';
+  code: 'orphaned-parenthetical' | 'bare-pause-line' | 'ambiguous-location' | 'unforced-transition' | 'misread-as-character' | 'panels-not-derived';
   /** `warning` is reported like every other non-blocking warning; `info` is a note. */
   severity: 'warning' | 'info';
   /** 0-based line the issue is on. */
@@ -262,7 +267,7 @@ export function buildShotMap(scriptText: string, entities: readonly ShotMapEntit
   const candidates: MentionCandidate[] = entities.map((entity) => ({ id: entity.id, kind: 'entity', names: entity.names }));
 
   const shots: ShotMapEntry[] = [];
-  const issues: ScriptShotIssue[] = [...findFormatIssues(items, scriptText.split(/\r\n|\r|\n/))];
+  const issues: ScriptShotIssue[] = [...findFormatIssues(items, scriptText.split(/\r\n|\r|\n/)), ...findMisreadIssues(scriptText)];
   let hasExplicitShots = false;
   let scene: SceneContext | undefined;
   let shotCounter = 0;
@@ -571,6 +576,24 @@ function findFormatIssues(items: readonly ScriptItem[], rawLines: readonly strin
     }
   }
   return issues;
+}
+
+/**
+ * Find `misread-as-character` issues: prefix lines (`SHOT:`, `SFX:`, ...)
+ * that standard Fountain reads as a character cue (Core ADR-0005). Comic
+ * keywords are the page map's to report, so each line is reported once.
+ *
+ * @param scriptText - The script's full text.
+ * @returns One warning per misread line.
+ */
+function findMisreadIssues(scriptText: string): ScriptShotIssue[] {
+  return findMisreadConventionLines(scriptText).map(({ line, text }) => ({
+    code: 'misread-as-character',
+    severity: 'warning',
+    line,
+    path: `lines[${line}]`,
+    message: `"${text}" (line ${line + 1}) is all capitals with text directly under it, so other Fountain apps read it as a character cue and print the lines under it as dialogue. Start it with "!" to force it as action, or leave a blank line after it.`,
+  }));
 }
 
 /** Rebuild an entry with its keys in the documented sidecar order (fields set later during the walk would otherwise land at the end). Absent optional fields are omitted. */

@@ -59,3 +59,33 @@ describe('scanScript', () => {
     ]);
   });
 });
+
+describe('scanScript — forced convention lines (Core ADR-0005)', () => {
+  it('reads a forced SHOT:/POSE: block as directives on the right lines', () => {
+    const items = scanScript('INT. A - DAY\n\n!SHOT: CLOSE-UP\n!POSE: SANGO KNEELS\n\nShe waits.\n');
+    expect(items.map((item) => [item.line, item.kind, item.kind === 'directive' ? item.keyword : ''])).toEqual([
+      [0, 'heading', ''],
+      [2, 'directive', 'SHOT'],
+      [3, 'directive', 'POSE'],
+      [5, 'action', ''],
+    ]);
+  });
+
+  it('reads the same directives whether a block is forced or misread as a character cue', () => {
+    const directives = (text: string): unknown[] =>
+      scanScript(text)
+        .filter((item) => item.kind === 'directive')
+        .map((item) => (item.kind === 'directive' ? [item.line, item.keyword, item.rest] : []));
+    expect(directives('INT. A - DAY\n\n!SHOT: CLOSE-UP\n!POSE: X\n')).toEqual(directives('INT. A - DAY\n\nSHOT: CLOSE-UP\nPOSE: X\n'));
+  });
+
+  it('reads a lyric directly under a character cue', () => {
+    const items = scanScript('INT. A - DAY\n\nWONKA\n~Come with me\nIn a world.\n');
+    expect(items.map((item) => [item.line, item.kind])).toEqual([
+      [0, 'heading'],
+      [2, 'character'],
+      [3, 'lyric'],
+      [4, 'dialogue'],
+    ]);
+  });
+});

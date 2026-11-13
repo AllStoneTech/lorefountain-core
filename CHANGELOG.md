@@ -16,6 +16,10 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 - 30 more unit tests (272 in all).
 
 - **The comic script convention** (ADR-0001, `docs/DECISIONS.md`): `PAGE:`/`PANEL:`/`CAPTION:`/`LAYOUT:` prefix lines plus ordinary dialogue for balloons, `comics/parseComic`, `comics/pageMap` (`buildPageMap`, with word counts and issues) and `comics/pageSidecar` (the `.pages.json` schema, version 1). `scanScript` takes `{ comic: true }`; default scans are unchanged.
+- **Forced convention lines** (ADR-0005): every convention line may start with Fountain 1.1's forced-action `!` (`!SHOT: CLOSE-UP`), which keeps a stacked all-caps block from being read as a character cue in other Fountain apps. `matchPrefixLine` and `matchComicLine` report it as `forced`, and cues on forced lines are extracted.
+- **Script export** (ADR-0006), dependency-free: `export/options` (the Zod schema for what an export includes, and the Pure Fountain, Production draft, Audio draft and Custom presets), `export/filter` (the script as standard Fountain with the chosen content: convention lines, tags, notes, sections, synopses, boneyard, LoreFountain title keys, and scene numbers kept, automatic or removed), `export/screenplay` (the document model with styled text runs; backslash escapes kept literal), the `export/fountain`, `export/html` and `export/fdx` writers, `export/layout` (screenplay pagination on the Courier character grid for a PDF renderer, US Letter or A4, with `(MORE)`/`(CONT'D)`, dual dialogue and a title page), and `export/settings` (the config's `export` section, read field by field). The config schema names `export` explicitly.
+- `fountain/misread` exports `bodyStart`, where a script's body starts after any title page.
+- **`fountain/misread`**, `findMisreadConventionLines`: one check, for every script, for convention lines standard Fountain reads as a character cue. Forced lines, lines with a lowercase letter and boneyard text are never reported. The shot map now reports `misread-as-character` as a warning for prefix lines on every script, and the comic page map reports it as a warning for comic lines only, so a line is never reported twice.
 
 - **Panels as shots** (ADR-0003): `comics/panelShots` (`buildShotMapFromPages`) derives a normal `.shots.json` shot map from a comic's panels, so a narrated or motion comic feeds LoreFountain-Producer with no Producer change. New panel fields in the convention and `.pages.json` (additive, `schema_version` still 1): an explicit `PANEL: [tag]` (default `<code>-p7-2`, checked for repeats: `duplicate-panel-tag`), `DURATION:` (`durationText`/`durationSeconds`), a new comic keyword `MOVE:` (`moveText`/`motion`) and `pageTurn` from a `TURN` page. Balloons become `spoken` lines; captions become V.O. lines with `caption: true` for the speaker or `NARRATOR`; a lettered `SFX:` is a cue only with `comic.sfxAsCue`. Explicit `SHOT:` lines win (`panels-not-derived`); scripts without pages are unchanged. Derived shots carry optional `page`, `pageLabel`, `panel`, `motion`, `pageTurn`. The project setting `comic.panelsAsShots` (default false) is read by `comicSettingsFromConfig`/`resolveComicSettings`. 35 more unit tests (414 in all).
 - **Comic `SFX:` is lettering by default** (ADR-0001, option C): `extractCues(text, { sfxAsCue })` leaves `SFX:` lines inside a comic panel out of the cues, so they are not written to `.cues.json` or checked against `audio.json`. The project setting `comic.sfxAsCue` (default false) keeps them as cues too. `MUSIC:` and `AMB:` are unaffected, as is any script with no `PAGE:` line.
@@ -29,6 +33,13 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 
 - **Comic default limits changed:** balloons per panel 5 to 3, words per panel 40 to 35 (panels per page 9 and words per balloon 25 stay). `PageLimits` fields may now be `null`.
 - The README describes how products link Core during development (`file:../LoreFountain-Core`) and the plan for prebuilt release tarballs.
+- `matchPrefixLine` and `matchComicLine` results gain a `forced` field, and `PREFIX_LINE`'s capture groups shift by one (group 1 is now the `!`).
+- The comic page map's `misread-as-character` is now a warning (it was an info note), covers comic lines only, and suggests starting the line with `!`.
+
+### Fixed
+
+- **A lyric directly under a character cue no longer fails the whole script.** `fountain-js` 1.2.4 throws on it; `parseFountain` now retries with the lyric shielded and returns it as a lyric token. Scripts that parsed before are unchanged.
+- **Tokens whose text `fountain-js` rewrites are no longer dropped** from shot maps, cues and other scans: forced lines (`!`, `@`, `.`, `>`, `~`), backslash escapes, tab indentation, two-space lines inside dialogue, and multi-line tokens in files with Windows line endings.
 
 ## [0.1.0] - 2026-11-06
 

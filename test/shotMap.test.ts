@@ -291,6 +291,22 @@ describe('buildShotMap edge cases', () => {
 });
 
 describe('buildShotMap issues', () => {
+  it('warns on a prefix line other Fountain apps read as a character cue, and still reads the shot', () => {
+    const script = 'INT. A - DAY\n\nSHOT: CLOSE-UP\nPOSE: MARA KNEELS\n\nShe waits.\n';
+    const { shots, issues } = buildShotMap(script, ENTITIES);
+    expect(issues).toEqual([
+      expect.objectContaining({ code: 'misread-as-character', severity: 'warning', line: 2, message: expect.stringContaining('"!"') }),
+    ]);
+    expect(shots.find((shot) => shot.shot === 1)).toMatchObject({ description: 'CLOSE-UP', pose: 'MARA KNEELS' });
+  });
+
+  it('reads a forced shot block the same way, with no warning', () => {
+    const script = 'INT. A - DAY\n\n!SHOT: CLOSE-UP\n!POSE: MARA KNEELS\n\nShe waits.\n';
+    const { shots, issues } = buildShotMap(script, ENTITIES);
+    expect(issues).toEqual([]);
+    expect(shots.find((shot) => shot.shot === 1)).toMatchObject({ description: 'CLOSE-UP', pose: 'MARA KNEELS' });
+  });
+
   it('warns on an orphaned parenthetical and leaves the lines as action, out of spoken', () => {
     const script = 'INT. A - DAY\n\nSHOT: WIDE\n\nMARA\nYou found us.\n\n(beat)\nYou are ready.\n';
     const { shots, issues } = buildShotMap(script, ENTITIES);

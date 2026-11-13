@@ -27,7 +27,8 @@ const text = (...parts: string[]): string => `${parts.join('\n')}\n`;
 
 describe('MOVE: and the panel additions (parsing)', () => {
   it('reads MOVE: as a comic line only', () => {
-    expect(matchComicLine('MOVE: slow zoom in')).toEqual({ keyword: 'MOVE', rest: 'slow zoom in' });
+    expect(matchComicLine('MOVE: slow zoom in')).toEqual({ keyword: 'MOVE', rest: 'slow zoom in', forced: false });
+    expect(matchComicLine('!MOVE: slow zoom in')).toEqual({ keyword: 'MOVE', rest: 'slow zoom in', forced: true });
     expect(matchComicLine('MOVE (x): a')).toBeUndefined();
     expect(matchComicLine('move: a')).toBeUndefined();
   });
