@@ -7,9 +7,13 @@
  * existing `SFX:`, `POSE:`, `LIGHT:` and `SHOT:` lines reused inside a
  * panel. Balloons are standard Fountain dialogue.
  *
+ * ADR-0003 adds, inside a panel: an optional `[tag]` on `PANEL:`, `DURATION:`,
+ * and a `MOVE:` camera-move hint; a `TURN` page modifier marks the page's
+ * first panel as a page-turn reveal. They feed `comics/panelShots.ts`.
+ *
  * Exports {@link extractComic} (the structure walk), {@link parsePageLine}
- * (a `PAGE:` line's label and modifiers), {@link countWords}, and the
- * structure types. Pure and entity-free: `pageMap.ts` adds entity
+ * (a `PAGE:` line's label and modifiers), {@link countWords},
+ * {@link motionFromMoveText}, and the structure types. Pure and entity-free: `pageMap.ts` adds entity
  * resolution, counts and validation on top.
  *
  * Gotchas:
@@ -26,6 +30,7 @@
  *   balloon in its speech, or to the last one when nothing follows.
  */
 
+import { matchLeadingTag, parseDurationSeconds } from '../fountain/conventions';
 import { scanScript, type CharacterItem } from '../shots/scanScript';
 import type { ValidationIssue } from '../model/errors';
 
@@ -97,8 +102,20 @@ export type LetteringEntry = BalloonEntry | CaptionEntry | SfxEntry;
 export interface ComicPanel {
   /** 1-based within the page; 0 for the implicit panel holding lettering written before a page's first `PANEL:`. */
   number: number;
-  /** The `PANEL:` text. Absent on panel 0. */
+  /** The `PANEL:` text, without its `[tag]`. Absent on panel 0. */
   description?: string;
+  /** An explicit `[tag]` written right after `PANEL:`. The default tag is derived later (`comics/panelShots.ts`), never stored here. */
+  tag?: string;
+  /** Raw text of a `DURATION:` line inside the panel (last one wins), kept even when no seconds can be read. */
+  durationText?: string;
+  /** Seconds parsed leniently from `durationText`; unset when none can be read. */
+  durationSeconds?: number;
+  /** The `MOVE:` text exactly as written (last one wins). */
+  moveText?: string;
+  /** The camera move as a Producer `motion` value: a recommended value when `moveText` is recognized, else the text as written. */
+  motion?: string;
+  /** True on the first panel of a page whose label carries the `TURN` modifier: a page-turn reveal. */
+  pageTurn?: true;
   /** From a `SHOT:` line inside the panel: camera framing for the artist. */
   shot?: string;
   /** From a `LAYOUT:` line inside the panel. */
@@ -131,6 +148,33 @@ export interface ComicPage extends PageLabel {
   panels: ComicPanel[];
   /** 0-based, inclusive: from the `PAGE:` line to the line before the next page, or the end of the file. */
   lines: { start: number; end: number };
+}
+
+/** Phrases in a `MOVE:` line and the recommended `motion` value each means, tested in order (first match wins). */
+const MOTION_PATTERNS: readonly (readonly [RegExp, string])[] = [
+  [/\b(?:hold|held|still|static|locked[- ]off|no (?:move|motion))\b/i, 'none'],
+  [/\bparallax\b/i, 'parallax'],
+  [/\b(?:zoom|push|dolly|move)(?:ing)?[- ]in\b|\bken[- ]?burns[- ]in\b|\bpush(?:ing)? in\b/i, 'ken-burns-in'],
+  [/\b(?:zoom|pull|dolly|move)(?:ing)?[- ]out\b|\bken[- ]?burns[- ]out\b|\bpull(?:ing)? back\b/i, 'ken-burns-out'],
+  [/\bpan(?:ning)?[- ]?left\b|\bleft pan\b|\bright to left\b/i, 'pan-left'],
+  [/\bpan(?:ning)?[- ]?right\b|\bright pan\b|\bleft to right\b/i, 'pan-right'],
+  [/\bdrift(?:ing)?\b/i, 'drift'],
+];
+
+/**
+ * Map a `MOVE:` line's freeform text to a Producer `motion` value
+ * (`assets/shotManifest.ts`' `RECOMMENDED_SHOT_MOTIONS`). Never guesses: text
+ * that matches no known phrase comes back unchanged, since `motion` is freeform.
+ *
+ * @param text - The text after `MOVE:`, e.g. `slow zoom in`.
+ * @returns A recommended motion (`ken-burns-in`, `pan-left`, `none`, ...) or the trimmed text itself.
+ */
+export function motionFromMoveText(text: string): string {
+  const trimmed = text.trim();
+  for (const [pattern, motion] of MOTION_PATTERNS) {
+    if (pattern.test(trimmed)) return motion;
+  }
+  return trimmed;
 }
 
 /** A structural problem found during the walk. */
@@ -321,8 +365,11 @@ function applyDirective(
       closePanel(walk, item.line - 1);
       walk.panelCounter += 1;
       walk.panel = newPanel(walk, walk.panelCounter, item.line);
-      walk.panel.description = value;
-      if (value) walk.panel.mentionText.push(value);
+      const { tag, rest: description } = matchLeadingTag(value);
+      walk.panel.description = description.trim();
+      if (tag !== undefined) walk.panel.tag = tag;
+      if (walk.panelCounter === 1 && walk.page.modifiers.includes('TURN')) walk.panel.pageTurn = true;
+      if (walk.panel.description) walk.panel.mentionText.push(walk.panel.description);
       return;
     }
     case 'CAPTION': {
@@ -339,6 +386,24 @@ function applyDirective(
       if (walk.panel) walk.panel.layout = value;
       else if (walk.page) walk.page.layout = value;
       return;
+    case 'DURATION':
+    case 'MOVE': {
+      const panel = walk.panel;
+      if (!panel) return; // Inert outside a panel, like POSE: before a SHOT:.
+      if (item.keyword === 'DURATION') {
+        panel.durationText = value;
+        const seconds = parseDurationSeconds(value);
+        if (seconds === undefined) delete panel.durationSeconds;
+        else panel.durationSeconds = seconds;
+      } else if (value === '') {
+        delete panel.moveText;
+        delete panel.motion;
+      } else {
+        panel.moveText = value;
+        panel.motion = motionFromMoveText(value);
+      }
+      return;
+    }
     case 'SHOT':
     case 'POSE':
     case 'LIGHT': {

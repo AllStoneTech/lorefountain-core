@@ -89,18 +89,18 @@ export function matchPrefixLine(lineText: string): PrefixLineMatch | undefined {
  * exactly as before. `SFX:`, `POSE:`, `LIGHT:` and `SHOT:` are reused inside a
  * panel and stay in {@link PREFIX_KEYWORDS}.
  */
-export const COMIC_KEYWORDS = ['PAGE', 'PANEL', 'LAYOUT', 'CAPTION'] as const;
+export const COMIC_KEYWORDS = ['PAGE', 'PANEL', 'LAYOUT', 'CAPTION', 'MOVE'] as const;
 
 /** One comic-script prefix keyword. */
 export type ComicKeyword = (typeof COMIC_KEYWORDS)[number];
 
 /**
- * A whole physical line that is a comic prefix line. `PAGE:`, `PANEL:` and
- * `LAYOUT:` end at the colon; `CAPTION:` may carry a parenthesized speaker
+ * A whole physical line that is a comic prefix line. `PAGE:`, `PANEL:`,
+ * `LAYOUT:` and `MOVE:` end at the colon; `CAPTION:` may carry a parenthesized speaker
  * before it (`CAPTION (LUCIEN):`). Group 1 is the keyword, group 2 the
  * caption speaker, group 3 the remaining text.
  */
-const COMIC_LINE = /^[ \t]*(PAGE|PANEL|LAYOUT|CAPTION)(?:[ \t]*\(([^()]*)\))?:[ \t]*(.*)$/;
+const COMIC_LINE = /^[ \t]*(PAGE|PANEL|LAYOUT|CAPTION|MOVE)(?:[ \t]*\(([^()]*)\))?:[ \t]*(.*)$/;
 
 /** Result of {@link matchComicLine}. */
 export interface ComicLineMatch {
@@ -113,7 +113,7 @@ export interface ComicLineMatch {
 
 /**
  * Recognize a physical line as a comic prefix line (`PAGE:`, `PANEL:`,
- * `LAYOUT:`, `CAPTION:`). Case-sensitive, like every convention line.
+ * `LAYOUT:`, `CAPTION:`, `MOVE:`). Case-sensitive, like every convention line.
  *
  * @param lineText - One physical line of script text.
  * @returns The keyword, optional caption speaker and remaining text, or `undefined` if the line isn't a comic prefix line.

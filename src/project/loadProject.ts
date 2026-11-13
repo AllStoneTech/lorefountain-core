@@ -43,9 +43,10 @@ import { idFromFilePath } from '../model/slug';
 import { parseTimelineEventFile, type TimelineEvent } from '../model/timeline';
 import { buildShotMap, type ShotMapEntity, type ShotMapResult } from '../shots/shotMap';
 import { ENTITY_EXCLUDED_SUBDIRS, isNonEntityDoc, listFilesWithExtension } from './files';
+import { readStyleBible, type LoadedStyleBible } from './styleBible';
 
 /** What part of the project a load issue concerns. */
-export type ProjectLoadIssueKind = 'config' | 'entity' | 'glossary' | 'event' | 'script' | 'manifest';
+export type ProjectLoadIssueKind = 'config' | 'entity' | 'glossary' | 'event' | 'script' | 'manifest' | 'style';
 
 /** A file that couldn't be loaded, or loaded only partly. */
 export interface ProjectLoadIssue {
@@ -99,6 +100,8 @@ export interface LoadedProject {
   /** Scripts sorted by path. */
   scripts: LoadedScript[];
   manifests: LoadedManifests;
+  /** The style bible (`world/style.lf.md`), when the project has a valid one. Missing reference images are listed on it, not in `issues`. */
+  style?: LoadedStyleBible;
   issues: ProjectLoadIssue[];
 }
 
@@ -134,6 +137,12 @@ export async function loadProject(root: string): Promise<LoadedProject> {
   });
 
   const manifests = await loadManifests(folders.assets, issues);
+  const styleRead = await readStyleBible(folders.world, root);
+  if (styleRead.status === 'invalid') {
+    issues.push({ kind: 'style', filePath: styleRead.filePath, reason: styleRead.reason, message: styleRead.message });
+  } else if (styleRead.status === 'read-error') {
+    issues.push({ kind: 'style', filePath: styleRead.filePath, reason: 'read-error', message: styleRead.message });
+  }
   const shotEntities = shotMapEntitiesFrom(entities.map((loaded) => loaded.entity));
 
   const scripts: LoadedScript[] = [];
@@ -171,6 +180,7 @@ export async function loadProject(root: string): Promise<LoadedProject> {
     events,
     scripts,
     manifests,
+    ...(styleRead.status === 'ok' ? { style: styleRead.style } : {}),
     issues,
   };
 }

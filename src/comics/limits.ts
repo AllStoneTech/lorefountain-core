@@ -132,6 +132,8 @@ export interface ComicProjectSettings {
   limits?: Partial<PageLimits>;
   /** When true, `SFX:` lines in comic panels are also audio cues (`.cues.json`). Default false. */
   sfxAsCue?: boolean;
+  /** When true, a comic script with no `SHOT:` lines gets a derived `.shots.json`, one shot per panel (ADR-0003). Default false. */
+  panelsAsShots?: boolean;
 }
 
 /** What {@link comicSettingsFromConfig} found. */
@@ -152,6 +154,7 @@ export interface ResolvedComicSettings {
   /** Which limits `comic.limits` set, so messages can say so. */
   overriddenLimits: PageLimitKey[];
   sfxAsCue: boolean;
+  panelsAsShots: boolean;
 }
 
 /** True for a known preset name. */
@@ -185,6 +188,11 @@ export function comicSettingsFromConfig(config: LoreFountainConfig): ComicSettin
   if (block.sfxAsCue !== undefined) {
     if (typeof block.sfxAsCue === 'boolean') settings.sfxAsCue = block.sfxAsCue;
     else issues.push('comic.sfxAsCue: expected true or false; ignoring it.');
+  }
+
+  if (block.panelsAsShots !== undefined) {
+    if (typeof block.panelsAsShots === 'boolean') settings.panelsAsShots = block.panelsAsShots;
+    else issues.push('comic.panelsAsShots: expected true or false; ignoring it.');
   }
 
   if (block.limits !== undefined) {
@@ -235,7 +243,7 @@ export function resolveComicSettings(project?: ComicProjectSettings, userDefault
       overriddenLimits.push(key);
     }
   }
-  return { preset, presetSource, limits, overriddenLimits, sfxAsCue: project?.sfxAsCue ?? false };
+  return { preset, presetSource, limits, overriddenLimits, sfxAsCue: project?.sfxAsCue ?? false, panelsAsShots: project?.panelsAsShots ?? false };
 }
 
 /**

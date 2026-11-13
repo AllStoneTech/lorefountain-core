@@ -45,6 +45,7 @@ import {
   type PageLimitKey,
   type PageLimits,
 } from './limits';
+import { resolvePanelTags } from './panelTags';
 import {
   countWords,
   extractComic,
@@ -69,8 +70,20 @@ export interface LetteringCounts {
 export interface PanelMapEntry {
   /** 1-based within the page; 0 for the implicit panel holding lettering written before a page's first `PANEL:`. */
   number: number;
-  /** The `PANEL:` text. Absent on panel 0. */
+  /** The `PANEL:` text, without its `[tag]`. Absent on panel 0. */
   description?: string;
+  /** An explicit `[tag]` written on the `PANEL:` line (ADR-0003). The derived default tag lives only in the derived shot map. */
+  tag?: string;
+  /** Raw `DURATION:` text inside the panel. */
+  durationText?: string;
+  /** Seconds read from `durationText`, when possible. */
+  durationSeconds?: number;
+  /** The `MOVE:` text as written. */
+  moveText?: string;
+  /** The camera move as a Producer `motion` value (recommended value when recognized, else the text). */
+  motion?: string;
+  /** True on the first panel of a `TURN` page. */
+  pageTurn?: true;
   shot?: string;
   layout?: string;
   pose?: string;
@@ -118,6 +131,10 @@ export interface PageMapOptions {
   limits?: Partial<PageLimits>;
   /** Which limits a project's `comic.limits` set, so messages say so. Defaults to every key present in `limits`. */
   overriddenLimits?: readonly PageLimitKey[];
+  /** Prefix for default panel tags (the production code, as a slug), used to check them for repeats. Omitted: no prefix. */
+  tagPrefix?: string;
+  /** The project's `comic.panelsAsShots`: panels become shots, so a panel with no description is noted as a shot with none. */
+  panelsAsShots?: boolean;
 }
 
 /** The limits in effect for one {@link buildPageMap} call, with where each came from. */
@@ -136,6 +153,7 @@ export interface ScriptPageIssue extends ValidationIssue {
     | 'page-number-gap'
     | 'empty-page'
     | 'missing-panel-description'
+    | 'duplicate-panel-tag'
     | 'splash-multiple-panels'
     | 'spread-without-range'
     | 'many-panels'
@@ -188,7 +206,11 @@ export function buildPageMap(
   const issues: ScriptPageIssue[] = [...structure.issues];
 
   if (structure.hasPages) {
-    issues.push(...pageIssues(pages, limitContext), ...misreadIssues(scriptText, pages));
+    issues.push(
+      ...pageIssues(pages, limitContext, options.panelsAsShots === true),
+      ...tagIssues(pages, options.tagPrefix),
+      ...misreadIssues(scriptText, pages),
+    );
   }
   issues.sort((a, b) => a.line - b.line);
 
@@ -246,6 +268,12 @@ function toPanelEntry(panel: ComicPanel, entities: readonly ShotMapEntity[], can
   return {
     number: panel.number,
     ...(panel.description !== undefined ? { description: panel.description } : {}),
+    ...(panel.tag !== undefined ? { tag: panel.tag } : {}),
+    ...(panel.durationText !== undefined ? { durationText: panel.durationText } : {}),
+    ...(panel.durationSeconds !== undefined ? { durationSeconds: panel.durationSeconds } : {}),
+    ...(panel.moveText !== undefined ? { moveText: panel.moveText } : {}),
+    ...(panel.motion !== undefined ? { motion: panel.motion } : {}),
+    ...(panel.pageTurn ? { pageTurn: true as const } : {}),
     ...(panel.shot !== undefined ? { shot: panel.shot } : {}),
     ...(panel.layout !== undefined ? { layout: panel.layout } : {}),
     ...(panel.pose !== undefined ? { pose: panel.pose } : {}),
@@ -316,7 +344,7 @@ function coveredNumbers(page: PageLabel): number[] {
 }
 
 /** Numbering, structure and word-budget checks across the explicit pages. */
-function pageIssues(pages: readonly PageMapEntry[], context: LimitContext): ScriptPageIssue[] {
+function pageIssues(pages: readonly PageMapEntry[], context: LimitContext, panelsAsShots: boolean): ScriptPageIssue[] {
   const { limits } = context;
   const via = (key: PageLimitKey): string => describeLimitSource(context.preset, context.overridden, key);
   const issues: ScriptPageIssue[] = [];
@@ -372,7 +400,16 @@ function pageIssues(pages: readonly PageMapEntry[], context: LimitContext): Scri
     for (const panel of page.panels) {
       const line = panel.lines.start;
       if (panel.number > 0 && (panel.description ?? '') === '') {
-        issues.push(issue('missing-panel-description', 'info', line, `PANEL: (line ${line + 1}) has no description for the artist.`));
+        issues.push(
+          issue(
+            'missing-panel-description',
+            'info',
+            line,
+            panelsAsShots
+              ? `PANEL: (line ${line + 1}) has no description, so its derived shot (comic.panelsAsShots) has no picture description for the Producer.`
+              : `PANEL: (line ${line + 1}) has no description for the artist.`,
+          ),
+        );
       }
       if (limits.maxBalloonsPerPanel !== null && panel.counts.balloons > limits.maxBalloonsPerPanel) {
         issues.push(issue('many-balloons', 'info', line, `Panel ${panel.number}${pageRef(page)} (line ${line + 1}) has ${panel.counts.balloons} balloons; more than ${limits.maxBalloonsPerPanel} crowds a panel (maxBalloonsPerPanel, ${via('maxBalloonsPerPanel')}).`));
@@ -388,6 +425,27 @@ function pageIssues(pages: readonly PageMapEntry[], context: LimitContext): Scri
     }
   }
   return issues;
+}
+
+/** A panel tag (written or derived) used by more than one panel. */
+function tagIssues(pages: readonly PageMapEntry[], prefix: string | undefined): ScriptPageIssue[] {
+  const sources = pages.flatMap((page) =>
+    page.panels.map((panel) => ({
+      pageIndex: page.index,
+      ...(page.number !== undefined ? { pageNumber: page.number } : {}),
+      panel: panel.number,
+      ...(panel.tag !== undefined ? { tag: panel.tag } : {}),
+      line: panel.lines.start,
+    })),
+  );
+  return resolvePanelTags(sources, prefix).duplicates.map((dup) =>
+    issue(
+      'duplicate-panel-tag',
+      'warning',
+      dup.line,
+      `PANEL: tag "${dup.tag}" (line ${dup.line + 1}) repeats the tag first used on line ${dup.firstLine + 1}. Panel tags must be unique in a script; give one of them a different [tag] (or fix a repeated page number, which repeats the default tags).`,
+    ),
+  );
 }
 
 /** " on page N" for messages, or empty for an unnumbered page. */

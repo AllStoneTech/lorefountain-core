@@ -67,6 +67,8 @@ export interface SpokenLine {
   text: string;
   /** True for the second speaker of Fountain dual dialogue (`^`): this line overlaps the entry just before it. */
   simultaneous?: true;
+  /** True when the line is a comic caption box (narration), derived from a panel (ADR-0003); absent on ordinary dialogue. */
+  caption?: true;
   /** 0-based line the text starts on. */
   line: number;
 }
@@ -162,11 +164,25 @@ export interface ShotMapEntry {
   entities: string[];
   /** 0-based lines of `SFX:`/`MUSIC:`/`AMB:` cues that start in this shot: pointers into `.cues.json`. */
   cues: number[];
+  /**
+   * Derived-from-panels hints (ADR-0003, `comics/panelShots.ts`). Present only on shots derived from comic
+   * panels; absent on every ordinary shot. Additive: a consumer that ignores them reads a normal shot.
+   */
+  /** The page's number, when its label is numeric (a range uses its first number). */
+  page?: number;
+  /** The page's label as written (`7`, `2-3`, `INSIDE FRONT COVER`). */
+  pageLabel?: string;
+  /** The panel's 1-based number within its page. */
+  panel?: number;
+  /** Camera move for the still, as a Producer `motion` value (from `MOVE:`). */
+  motion?: string;
+  /** True when this panel opens a page-turn reveal (first panel of a `TURN` page): a hold hint. */
+  pageTurn?: true;
 }
 
 /** A per-script issue found while building the shot map. */
 export interface ScriptShotIssue extends ValidationIssue {
-  code: 'orphaned-parenthetical' | 'bare-pause-line' | 'ambiguous-location' | 'unforced-transition';
+  code: 'orphaned-parenthetical' | 'bare-pause-line' | 'ambiguous-location' | 'unforced-transition' | 'panels-not-derived';
   /** `warning` is reported like every other non-blocking warning; `info` is a note. */
   severity: 'warning' | 'info';
   /** 0-based line the issue is on. */
@@ -179,6 +195,8 @@ export interface ShotMapResult {
   shots: ShotMapEntry[];
   /** True when the script has at least one explicit `SHOT:` line (an implicit shot 0 alone doesn't count). */
   hasExplicitShots: boolean;
+  /** True when `shots` were derived from comic panels (`comics/panelShots.ts`) rather than written as `SHOT:` lines. Absent on an ordinary shot map. */
+  derivedFromPanels?: true;
   issues: ScriptShotIssue[];
 }
 
@@ -398,7 +416,7 @@ function scenePause(value: string, line: number): ScenePause {
 }
 
 /** Build a `{ pause: 'speaker' }` entry for a pause parenthetical. */
-function speakerPause(
+export function speakerPause(
   speaker: CharacterItem,
   direction: string,
   line: number,
@@ -415,7 +433,7 @@ function speakerPause(
 }
 
 /** Build a `{ direction }` entry for a non-pause parenthetical. */
-function speakerDirection(
+export function speakerDirection(
   speaker: CharacterItem,
   direction: string,
   line: number,
@@ -431,7 +449,7 @@ function speakerDirection(
 }
 
 /** Build a spoken-line entry. */
-function spokenLine(speaker: CharacterItem, text: string, line: number, entities: readonly ShotMapEntity[]): SpokenLine {
+export function spokenLine(speaker: CharacterItem, text: string, line: number, entities: readonly ShotMapEntity[]): SpokenLine {
   const speakerEntity = resolveExactName(speaker.name, entities);
   // Built in sidecar field order: speaker, speakerEntity, extensions, text, simultaneous, line.
   return {
@@ -449,7 +467,7 @@ function spokenLine(speaker: CharacterItem, text: string, line: number, entities
  * (case-insensitive, trimmed). Never guesses: no match, or more than one
  * distinct entity, yields `undefined`.
  */
-function resolveExactName(name: string, entities: readonly ShotMapEntity[]): string | undefined {
+export function resolveExactName(name: string, entities: readonly ShotMapEntity[]): string | undefined {
   const ids = idsMatchingName(name, entities);
   return ids.length === 1 ? ids[0] : undefined;
 }
@@ -466,7 +484,7 @@ function idsMatchingName(name: string, entities: readonly ShotMapEntity[]): stri
 }
 
 /** Resolve heading setting segments to location entity ids, reporting ambiguous segments. */
-function resolveLocations(
+export function resolveLocations(
   setting: readonly string[],
   entities: readonly ShotMapEntity[],
   heading: { line: number; text: string },
@@ -578,11 +596,26 @@ function inFieldOrder(entry: ShotMapEntry): ShotMapEntry {
     transition: entry.transition,
     entities: entry.entities,
     cues: entry.cues,
+    page: entry.page,
+    pageLabel: entry.pageLabel,
+    panel: entry.panel,
+    motion: entry.motion,
+    pageTurn: entry.pageTurn,
   };
   for (const key of Object.keys(ordered) as (keyof ShotMapEntry)[]) {
     if (ordered[key] === undefined) delete ordered[key];
   }
   return ordered;
+}
+
+/**
+ * True for a pause parenthetical inside dialogue: `(beat)`, `(long pause)`, ...
+ *
+ * @param text - The parenthetical as written, parentheses included.
+ * @returns Whether it is one of {@link SPEAKER_PAUSE_PARENTHETICALS}.
+ */
+export function isSpeakerPause(text: string): boolean {
+  return SPEAKER_PAUSES.has(normalize(text));
 }
 
 /** Lowercase and collapse whitespace, for exact list comparison. */

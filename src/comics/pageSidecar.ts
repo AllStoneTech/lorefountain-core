@@ -83,6 +83,12 @@ export const panelSchema = z
   .object({
     number: z.number().int().min(0),
     description: z.string().optional(),
+    tag: z.string().optional(),
+    durationText: z.string().optional(),
+    durationSeconds: z.number().optional(),
+    moveText: z.string().optional(),
+    motion: z.string().optional(),
+    pageTurn: z.literal(true).optional(),
     shot: z.string().optional(),
     layout: z.string().optional(),
     pose: z.string().optional(),

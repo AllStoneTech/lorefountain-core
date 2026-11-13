@@ -1,6 +1,6 @@
 /**
  * Story Overview schema and file (de)serialization (the project owner, 2026-07-30,
- * following ADR-0029). `world/OVERVIEW.md` gets a small set of genuinely
+ * following ADR-0029). `world/overview.lf.md` gets a small set of genuinely
  * universal structured fields — `title`, `pitch`, `tone`, `genre` — plus a
  * completely free Markdown body for everything else (Premise, Setting,
  * Synopsis, Themes, or whatever headers a given project's genre actually
@@ -36,7 +36,7 @@ export type StoryOverviewFrontmatter = z.infer<typeof storyOverviewSchema>;
 
 /** A fully-resolved Story Overview: validated frontmatter plus file context. */
 export interface StoryOverview {
-  /** Absolute path to `world/OVERVIEW.md`. */
+  /** Absolute path to `world/overview.lf.md`. */
   filePath: string;
   /** Markdown body — the free-form sections (Premise, Setting, Synopsis, Themes, or whatever the project actually wants). */
   body: string;

@@ -38,7 +38,7 @@ export const loreFountainConfigSchema = z
       })
       .optional(),
     /**
-     * Comic-script settings (`preset`, `limits`, `sfxAsCue`). Kept loose here on purpose: a bad value
+     * Comic-script settings (`preset`, `limits`, `sfxAsCue`, `panelsAsShots`). Kept loose here on purpose: a bad value
      * must not invalidate the whole file, so `comics/limits`' `comicSettingsFromConfig` validates it
      * part by part and reports what it drops.
      */

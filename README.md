@@ -16,7 +16,7 @@ It reads and parses only. It never writes a file, so a product that uses it can'
 | `shots/parseShots`, `shots/sceneHeading` | Shot lines and scene headings |
 | `comics/parseComic`, `comics/pageMap`, `comics/pageSidecar`, `comics/limits` | The comic script convention (`PAGE:`/`PANEL:`/`CAPTION:`): structure, the page map written to `.pages.json`, its schema, and the word-budget presets and `comic` config settings. See `docs/DECISIONS.md` |
 | `cues/parseCues` | `SFX:`, `MUSIC:` and `AMB:` cues |
-| `model/*` | Entity, glossary, timeline, story overview and script models, with their Zod schemas |
+| `model/*` | Entity, glossary, timeline, story overview, style bible and script models, with their Zod schemas |
 | `index/mentions` | Finds entity mentions in text |
 | `assets/*` | The schemas and readers for `shots.json`, `audio.json` and the entity manifests |
 
