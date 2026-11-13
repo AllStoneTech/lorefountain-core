@@ -4,6 +4,10 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-13
+
+The first release products install from GitHub: a prebuilt package attached to the release (`lorefountain-core-0.2.0.tgz`), so installing needs no build step.
+
 ### Added
 
 - `CHANGELOG.md` and `ROADMAP.md`.

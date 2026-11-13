@@ -28,17 +28,33 @@ import { buildShotMap } from 'lorefountain-core/shots/shotMap';
 
 ## Installing
 
-The package isn't on npm. For now, products depend on a sibling checkout of this repo:
+The package isn't on npm. Each GitHub release has a prebuilt package attached (made with `npm pack`, `dist/` included), and products pin it by URL:
 
 ```json
 "devDependencies": {
-  "lorefountain-core": "file:../LoreFountain-Core"
+  "lorefountain-core": "https://github.com/AllStoneTech/lorefountain-core/releases/download/v0.2.0/lorefountain-core-0.2.0.tgz"
 }
 ```
 
-Run `npm install` in Core first (it builds `dist/`), and `npm run build` after each change, since products read `dist/`. The extension lists Core as a dev dependency because esbuild bundles it.
+Installing it needs no build step and works on any npm. (A `github:` dependency would build on install, but npm 11.12 fails while preparing git dependencies.) The extension lists Core as a dev dependency because esbuild bundles it.
 
-Before a product's CI can install Core, it switches to a pinned release. A `github:` dependency doesn't install on npm 11.12, which fails while preparing git dependencies, so releases will likely attach a prebuilt `npm pack` tarball.
+To work on Core and a product together, link the sibling checkout for the session, and put the release back when done:
+
+```bash
+cd LoreFountain-Core && npm install && npm run build
+cd ../LoreFountain-VSCE && npm install --no-save ../LoreFountain-Core
+# ...when finished:
+npm ci
+```
+
+Run `npm run build` in Core after each change, since products read `dist/`.
+
+## Releasing
+
+1. Move the changelog's Unreleased entries under the new version, and set the version with `npm version <x.y.z> --no-git-tag-version`.
+2. Run `npm run check`, then commit, and tag `v<x.y.z>` (tags are never moved).
+3. Run `npm pack`, and attach `lorefountain-core-<x.y.z>.tgz` to a GitHub release for the tag.
+4. In each product, point the dependency at the new release's URL and run `npm install`, so the lockfile records its integrity.
 
 ## Developing
 

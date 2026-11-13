@@ -6,9 +6,10 @@ Done items move to `CHANGELOG.md`.
 
 ## Now: make Core installable by CI
 
-- [ ] Attach a prebuilt `npm pack` tarball to each GitHub release, so products can pin a release without a build step. (`github:` dependencies don't install on npm 11.12, which fails while preparing git dependencies.) Creating a release is an outward-facing step the owner approves each time.
+- [x] Attach a prebuilt `npm pack` tarball to each GitHub release, so products can pin a release without a build step (v0.2.0). Creating a release is an outward-facing step the owner approves each time.
 - [ ] A release workflow that builds, tests, packs and attaches the tarball when a tag is pushed.
-- [ ] Switch the extension (branch `feature/lorefountain-core`) and the Producer from `file:../LoreFountain-Core` to the pinned release.
+- [x] Switch the extension from `file:../LoreFountain-Core` to the pinned release.
+- [ ] Switch the Producer too, once it has a remote and CI; until then it links the sibling checkout.
 
 ## Next: what the Producer's phase 1 needs
 
