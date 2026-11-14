@@ -1,6 +1,6 @@
 {
   "name": "lorefountain-core",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "LoreFountain's shared parsing core: Fountain scripts, shot and cue maps, entity and manifest schemas. Read and parse only.",
   "author": "Louis (All Stone Tech)",
   "license": "MIT",

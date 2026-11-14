@@ -4,6 +4,10 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-14
+
+Producer file names carry `.lfp.`, on-screen text prefix lines, shot tags, cue-extension checks and more Producer config. Install the prebuilt package attached to the release (`lorefountain-core-0.4.0.tgz`).
+
 ### Changed
 
 - **Producer file names carry `.lfp.`** (ADR-0009): `producer.json` is now `producer.lfp.json`, and `producer/takes.json` and `producer/provenance.json` are `producer/takes.lfp.json` and `producer/provenance.lfp.json`. New: `PRODUCER_FILE_MARKER`, `isProducerFileName`, and the old names as `LEGACY_PRODUCER_CONFIG_FILE_NAME`, `LEGACY_TAKES_FILE` and `LEGACY_PROVENANCE_FILE`. The readers don't fall back to the old names.

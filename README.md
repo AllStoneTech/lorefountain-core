@@ -32,7 +32,7 @@ The package isn't on npm. Each GitHub release has a prebuilt package attached (m
 
 ```json
 "devDependencies": {
-  "lorefountain-core": "https://github.com/AllStoneTech/lorefountain-core/releases/download/v0.3.0/lorefountain-core-0.3.0.tgz"
+  "lorefountain-core": "https://github.com/AllStoneTech/lorefountain-core/releases/download/v0.4.0/lorefountain-core-0.4.0.tgz"
 }
 ```
 
