@@ -114,6 +114,17 @@ describe('filterScript', () => {
     expect(filter('INT. A - DAY\n\n!SFX: [door] a door\n', { tags: false })).toBe('INT. A - DAY\n\n!SFX: a door\n');
   });
 
+  it('keeps SUPER:, TITLE CARD: and CHYRON: lines in every preset, dropping only their tag when tags are off', () => {
+    const script = 'INT. A - DAY\n\nSUPER: [place] Richmond, 1894\n\nTITLE CARD: ACT ONE\n\nCHYRON: [news] LIVE\n';
+    for (const preset of ['pure', 'production', 'audio'] as const) {
+      const out = filter(script, {}, preset);
+      expect(out).toContain('Richmond, 1894');
+      expect(out).toContain('TITLE CARD: ACT ONE');
+      expect(out).toContain('LIVE');
+    }
+    expect(filter(script, { tags: false })).toBe('INT. A - DAY\n\nSUPER: Richmond, 1894\n\nTITLE CARD: ACT ONE\n\nCHYRON: LIVE\n');
+  });
+
   it('removes a convention line inside an action block without splitting the block', () => {
     expect(filter('Rain.\nSFX: thunder\nMore rain.\n', { sound: false })).toBe('Rain.\nMore rain.\n');
   });

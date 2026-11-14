@@ -54,7 +54,20 @@ export function matchLeadingTag(text: string): LeadingTagMatch {
 }
 
 /** Every LoreFountain prefix keyword, in no particular order. */
-export const PREFIX_KEYWORDS = ['SHOT', 'POSE', 'LIGHT', 'DURATION', 'PAUSE', 'SFX', 'MUSIC', 'AMB'] as const;
+export const PREFIX_KEYWORDS = [
+  'SHOT',
+  'POSE',
+  'LIGHT',
+  'DURATION',
+  'PAUSE',
+  'SFX',
+  'MUSIC',
+  'AMB',
+  // On-screen text over the picture; each takes an optional leading `[tag]` (a text style key).
+  'SUPER',
+  'TITLE CARD',
+  'CHYRON',
+] as const;
 
 /** One LoreFountain prefix keyword. */
 export type PrefixKeyword = (typeof PREFIX_KEYWORDS)[number];

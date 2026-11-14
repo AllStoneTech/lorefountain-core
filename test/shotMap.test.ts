@@ -274,6 +274,56 @@ describe('buildShotMap edge cases', () => {
     expect(shots[0].action).toEqual([]);
   });
 
+  describe('SUPER:, TITLE CARD: and CHYRON: lines', () => {
+    it('writes each kind to onScreen with its optional [tag], in script order, and not to action', () => {
+      const script = [
+        'INT. A - DAY', // 0
+        '', // 1
+        'SHOT: [1x01-wide] WIDE', // 2
+        '', // 3
+        'SUPER: [place] Richmond, Virginia, 1894', // 4
+        '', // 5
+        'CHYRON: LIVE FROM THE CAPITOL', // 6
+        'TITLE CARD: [act-one] ACT ONE', // 7
+        '', // 8
+        'Mara waits.', // 9
+      ].join('\n');
+      const { shots } = buildShotMap(script, ENTITIES);
+      expect(shots[0].onScreen).toEqual([
+        { kind: 'super', tag: 'place', text: 'Richmond, Virginia, 1894', line: 4 },
+        { kind: 'chyron', text: 'LIVE FROM THE CAPITOL', line: 6 },
+        { kind: 'titleCard', tag: 'act-one', text: 'ACT ONE', line: 7 },
+      ]);
+      expect(shots[0].action).toEqual([{ text: 'Mara waits.', line: 9 }]);
+    });
+
+    it('keeps text that does not start with a valid tag whole, and accepts a forced "!" line', () => {
+      const script = 'INT. A - DAY\n\nSHOT: WIDE\n\n!SUPER: [Not A Tag] hello\n\nSUPER: [x]\n';
+      const { shots } = buildShotMap(script, ENTITIES);
+      expect(shots[0].onScreen).toEqual([{ kind: 'super', text: '[Not A Tag] hello', line: 4 }]);
+    });
+
+    it('writes no entry for a prefix with no text', () => {
+      const { shots } = buildShotMap('INT. A - DAY\n\nSHOT: WIDE\n\nCHYRON:\n\nMara waits.\n', ENTITIES);
+      expect(shots[0].onScreen).toEqual([]);
+    });
+
+    it('reads an all-caps line that Fountain misreads as a character cue, and the lines under it', () => {
+      const script = 'INT. A - DAY\n\nSHOT: WIDE\n\nSUPER: RICHMOND, 1894\nMara waits.\n';
+      const { shots, issues } = buildShotMap(script, ENTITIES);
+      expect(shots[0].onScreen).toEqual([{ kind: 'super', text: 'RICHMOND, 1894', line: 4 }]);
+      expect(shots[0].spoken).toEqual([]);
+      expect(shots[0].action).toEqual([{ text: 'Mara waits.', line: 5 }]);
+      expect(issues.map((issue) => issue.code)).toContain('misread-as-character');
+    });
+
+    it('lands in the shot it is written in, keeping centered text alongside', () => {
+      const script = 'INT. A - DAY\n\nSHOT: [a] WIDE\n\nSUPER: one\n\nSHOT: [b] CLOSE\n\nCHYRON: two\n\n> THE END <\n';
+      const { shots } = buildShotMap(script, ENTITIES);
+      expect(shots.map((shot) => shot.onScreen.map((text) => text.kind))).toEqual([['super'], ['chyron', 'centered']]);
+    });
+  });
+
   it('records the last transition in a shot as Fountain reads it, without the > marker', () => {
     const script = 'INT. A - DAY\n\nSHOT: WIDE\n\nMara leaves.\n\nCUT TO:\n\n> DISSOLVE TO WHITE.\n\nINT. B - DAY\n\nSHOT: CLOSE\n';
     const { shots } = buildShotMap(script, ENTITIES);
@@ -291,9 +341,13 @@ describe('buildShotMap edge cases', () => {
 });
 
 describe('buildShotMap issues', () => {
+  /** These tests are about the other issue codes: the tag warnings (`untagged-*`) have their own tests in tagShots.test.ts. */
+  const withoutTagWarnings = <T extends { code: string }>(issues: readonly T[]): T[] => issues.filter((issue) => !issue.code.startsWith('untagged'));
+
   it('warns on a prefix line other Fountain apps read as a character cue, and still reads the shot', () => {
     const script = 'INT. A - DAY\n\nSHOT: CLOSE-UP\nPOSE: MARA KNEELS\n\nShe waits.\n';
-    const { shots, issues } = buildShotMap(script, ENTITIES);
+    const { shots, issues: allIssues } = buildShotMap(script, ENTITIES);
+    const issues = withoutTagWarnings(allIssues);
     expect(issues).toEqual([
       expect.objectContaining({ code: 'misread-as-character', severity: 'warning', line: 2, message: expect.stringContaining('"!"') }),
     ]);
@@ -302,14 +356,16 @@ describe('buildShotMap issues', () => {
 
   it('reads a forced shot block the same way, with no warning', () => {
     const script = 'INT. A - DAY\n\n!SHOT: CLOSE-UP\n!POSE: MARA KNEELS\n\nShe waits.\n';
-    const { shots, issues } = buildShotMap(script, ENTITIES);
+    const { shots, issues: allIssues } = buildShotMap(script, ENTITIES);
+    const issues = withoutTagWarnings(allIssues);
     expect(issues).toEqual([]);
     expect(shots.find((shot) => shot.shot === 1)).toMatchObject({ description: 'CLOSE-UP', pose: 'MARA KNEELS' });
   });
 
   it('warns on an orphaned parenthetical and leaves the lines as action, out of spoken', () => {
     const script = 'INT. A - DAY\n\nSHOT: WIDE\n\nMARA\nYou found us.\n\n(beat)\nYou are ready.\n';
-    const { shots, issues } = buildShotMap(script, ENTITIES);
+    const { shots, issues: allIssues } = buildShotMap(script, ENTITIES);
+    const issues = withoutTagWarnings(allIssues);
     expect(issues).toEqual([expect.objectContaining({ code: 'orphaned-parenthetical', severity: 'warning', line: 7 })]);
     expect(shots[0].spoken).toEqual([{ speaker: 'MARA', speakerEntity: 'mara', extensions: [], text: 'You found us.', line: 5 }]);
     expect(shots[0].action).toEqual([{ text: '(beat)\nYou are ready.', line: 7 }]);
@@ -335,7 +391,8 @@ describe('buildShotMap issues', () => {
       'The sea.', // 15
       '',
     ].join('\n');
-    const { issues } = buildShotMap(script, []);
+    const { issues: allIssues } = buildShotMap(script, []);
+    const issues = withoutTagWarnings(allIssues);
     expect(issues.map((issue) => [issue.code, issue.severity, issue.line])).toEqual([
       ['unforced-transition', 'info', 0],
       ['unforced-transition', 'info', 6],
@@ -346,7 +403,8 @@ describe('buildShotMap issues', () => {
 
   it('notes bare pause lines but treats "Mara pauses" as ordinary action', () => {
     const script = 'INT. A - DAY\n\nSHOT: WIDE\n\nBeat.\n\nA long silence.\n\nMara pauses at the door.\n';
-    const { shots, issues } = buildShotMap(script, ENTITIES);
+    const { shots, issues: allIssues } = buildShotMap(script, ENTITIES);
+    const issues = withoutTagWarnings(allIssues);
     expect(issues.map((issue) => [issue.code, issue.severity, issue.line])).toEqual([
       ['bare-pause-line', 'info', 4],
       ['bare-pause-line', 'info', 6],
@@ -361,7 +419,8 @@ describe('buildShotMap issues', () => {
       { id: 'station-basement', type: 'location', names: ['basement'] },
       { id: 'hollow-house', type: 'location', names: ['Hollow House'] },
     ];
-    const { shots, issues } = buildShotMap('INT. HOLLOW HOUSE - BASEMENT - NIGHT\n\nSHOT: WIDE\n', entities);
+    const { shots, issues: allIssues } = buildShotMap('INT. HOLLOW HOUSE - BASEMENT - NIGHT\n\nSHOT: WIDE\n', entities);
+    const issues = withoutTagWarnings(allIssues);
     expect(shots[0].locations).toEqual(['hollow-house']);
     expect(issues).toEqual([expect.objectContaining({ code: 'ambiguous-location', severity: 'info', line: 0 })]);
     expect(issues[0].message).toContain('house-basement, station-basement');
@@ -374,7 +433,8 @@ describe('buildShotMap issues', () => {
       { id: 'lucien', type: 'character', names: ['Lucien'] },
       { id: 'the-archive', type: 'concept', names: ['The Archive'] },
     ];
-    const { shots, issues } = buildShotMap("INT. THE ARCHIVE — LUCIEN'S BASEMENT — NIGHT\n\nSHOT: WIDE\n", entities);
+    const { shots, issues: allIssues } = buildShotMap("INT. THE ARCHIVE — LUCIEN'S BASEMENT — NIGHT\n\nSHOT: WIDE\n", entities);
+    const issues = withoutTagWarnings(allIssues);
     expect(shots[0].locations).toEqual([]);
     expect(issues).toEqual([]);
   });

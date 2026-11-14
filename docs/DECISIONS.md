@@ -4,6 +4,31 @@ Decisions about Core itself. Earlier decisions (ADR-0038 shot maps, ADR-0040 Fou
 
 ---
 
+## ADR-0010 — Cue-line extensions in a parenthetical, and untagged shots
+
+**Date:** 2026-11-14 · **Status:** Accepted (owner approved the plan on 2026-11-14). Extension side: LoreFountain-VSCE ADR-0054.
+
+### 1. Decision
+
+Three new shot-map issues, all warnings, and one pure planner.
+
+- **`cue-extension-parenthetical`** (`fountain/cueExtensions.ts`, reported by `buildShotMap`): a parenthetical directly under a cue (the line right after it) whose first token is `V.O.`, `O.S.`, `O.C.` or `FILTERED`, exactly and in capitals. `splitExtensionParenthetical` returns the extensions, in written order, and the wording left over after a comma, semicolon, dash or spaced hyphen; a parenthetical of only extensions has no remainder. When there is no separator (`(V.O. reading aloud)`) or the text has nested parentheses it returns `ambiguous` and the issue says to fix it by hand. Extensions further into a speech are not reported.
+- **`untagged-shot`**: a `SHOT:` line with no `[tag]`. This follows the Producer spec's decision ("a LoreFountain warning on untagged shots"); cue tags stay optional.
+- **`untagged-implicit-shot`**: a scene with content before its first `SHOT:` (or with no `SHOT:` at all), reported only in a script that has at least one explicit `SHOT:`, since a script with no shots has nothing to tag. That opening shot has no line to carry a tag, so no automatic fix exists. Content before the first scene heading (scene 0) is not reported.
+- **`planShotTags(text, prefix, reserved)` / `applyShotTags`** (`shots/tagShots.ts`) generate `<prefix>-<scene>-<shot>` (`1x03-04-02`, two digits at least, scene `00` before the first heading). A tag is an ID, derived once and written: never overwritten, never a duplicate within the script or of a `reserved` tag, and on a clash the shot number counts up to the next free one, so an insert never renumbers a neighbour. Only the tag is inserted (after `SHOT:` and its spaces, adding one space when there is none); line endings are never touched. With no usable prefix nothing is generated and every shot is reported as skipped. A second run plans nothing.
+
+### 2. Consequences
+
+- A script written before this release gets one `untagged-shot` warning per `SHOT:` line (Orun: 371) and one `untagged-implicit-shot` per scene that opens with content (Orun: 21). The first kind has a fix; the second needs a `SHOT:` line added by hand.
+- The existing rule "never put a scene or shot number in a tag" (script-writer.md) now applies to tags a person chooses; a generated ID is the one exception, because it is never recomputed.
+- Issue order in `ShotMapResult.issues` is unchanged for existing codes; the new ones are appended.
+
+### 3. Not done
+
+The old-to-new rename map the Producer spec describes for retagged shots, and cross-project tag uniqueness inside Core (the extension passes the project's existing tags as `reserved`).
+
+---
+
 ## ADR-0009 — Files LoreFountain-Producer owns carry `.lfp.` in their names
 
 **Date:** 2026-11-14 · **Status:** Accepted (owner's instruction, 2026-11-14: "all files that you own should be named *.lfp.*").

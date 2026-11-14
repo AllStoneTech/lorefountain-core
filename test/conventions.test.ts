@@ -43,7 +43,7 @@ describe('matchLeadingTag', () => {
 });
 
 describe('matchPrefixLine', () => {
-  it.each(['SHOT', 'POSE', 'LIGHT', 'DURATION', 'PAUSE', 'SFX', 'MUSIC', 'AMB'])('recognizes %s:', (keyword) => {
+  it.each(['SHOT', 'POSE', 'LIGHT', 'DURATION', 'PAUSE', 'SFX', 'MUSIC', 'AMB', 'SUPER', 'TITLE CARD', 'CHYRON'])('recognizes %s:', (keyword) => {
     expect(matchPrefixLine(`  ${keyword}: something`)).toEqual({ keyword, rest: 'something', forced: false });
   });
 

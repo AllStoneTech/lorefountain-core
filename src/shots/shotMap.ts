@@ -44,7 +44,8 @@
  */
 
 import { extractCues } from '../cues/parseCues';
-import { parseDurationSeconds } from '../fountain/conventions';
+import { matchLeadingTag, parseDurationSeconds } from '../fountain/conventions';
+import { splitExtensionParenthetical } from '../fountain/cueExtensions';
 import { findMisreadConventionLines } from '../fountain/misread';
 import { extractMentionTargets, type MentionCandidate } from '../index/mentions';
 import type { ValidationIssue } from '../model/errors';
@@ -123,13 +124,13 @@ export interface ShotAction {
   line: number;
 }
 
-/** What kind of on-screen text an {@link OnScreenText} is. Only `centered` is written by scripts today; `super`, `titleCard` and `chyron` are reserved for the `SUPER:`/`TITLE CARD:`/`CHYRON:` prefix lines. */
+/** What kind of on-screen text an {@link OnScreenText} is: `super`, `titleCard` and `chyron` come from the `SUPER:`/`TITLE CARD:`/`CHYRON:` prefix lines, `centered` from Fountain centered text. */
 export type OnScreenKind = 'super' | 'titleCard' | 'chyron' | 'centered';
 
 /** Text meant to be seen on screen. */
 export interface OnScreenText {
   kind: OnScreenKind;
-  /** A style tag, for the prefix-line kinds. */
+  /** The `[tag]` after the prefix, a text style key (`textStyles` in `producer.json`); only on the prefix-line kinds, and only when written. */
   tag?: string;
   text: string;
   line: number;
@@ -187,7 +188,16 @@ export interface ShotMapEntry {
 
 /** A per-script issue found while building the shot map. */
 export interface ScriptShotIssue extends ValidationIssue {
-  code: 'orphaned-parenthetical' | 'bare-pause-line' | 'ambiguous-location' | 'unforced-transition' | 'misread-as-character' | 'panels-not-derived';
+  code:
+    | 'orphaned-parenthetical'
+    | 'bare-pause-line'
+    | 'ambiguous-location'
+    | 'unforced-transition'
+    | 'misread-as-character'
+    | 'panels-not-derived'
+    | 'cue-extension-parenthetical'
+    | 'untagged-shot'
+    | 'untagged-implicit-shot';
   /** `warning` is reported like every other non-blocking warning; `info` is a note. */
   severity: 'warning' | 'info';
   /** 0-based line the issue is on. */
@@ -227,6 +237,13 @@ export const BARE_PAUSE_LINES: readonly string[] = [
   'a long silence.',
   'a moment.',
 ];
+
+/** Which `onScreen` kind each on-screen-text prefix keyword writes. */
+const ON_SCREEN_KINDS: Readonly<Record<string, OnScreenKind>> = {
+  SUPER: 'super',
+  'TITLE CARD': 'titleCard',
+  CHYRON: 'chyron',
+};
 
 const SPEAKER_PAUSES = new Set(SPEAKER_PAUSE_PARENTHETICALS);
 const BARE_PAUSES = new Set(BARE_PAUSE_LINES);
@@ -273,10 +290,17 @@ export function buildShotMap(scriptText: string, entities: readonly ShotMapEntit
   let shotCounter = 0;
   let open: OpenShot | undefined;
 
+  /** Scenes whose implicit shot has content, reported once the script is known to use `SHOT:` lines at all. */
+  const implicitShots: Array<{ line: number; heading: string; scene: number }> = [];
+  const scenesWithShots = new Set<number>();
+
   const close = (endLine: number): void => {
     if (!open) return;
     if (open.explicit || open.hasContent) {
       const { entry } = open;
+      if (!open.explicit && open.hasContent && entry.scene > 0) {
+        implicitShots.push({ line: entry.lines.start, heading: entry.sceneHeading ?? '', scene: entry.scene });
+      }
       entry.lines.end = Math.max(entry.lines.start, endLine);
       entry.cues = cueLines.filter((line) => line >= entry.lines.start && line <= entry.lines.end);
       entry.entities = extractMentionTargets(open.mentionText.join('\n'), candidates).map((target) => target.id);
@@ -329,7 +353,17 @@ export function buildShotMap(scriptText: string, entities: readonly ShotMapEntit
       hasExplicitShots = true;
       shotCounter += 1;
       open = openShot(item.line, shotCounter, true);
+      scenesWithShots.add(open.entry.scene);
       const { tag, description } = parseShotText(item.rest);
+      if (tag === undefined) {
+        issues.push({
+          code: 'untagged-shot',
+          severity: 'warning',
+          line: item.line,
+          path: `lines[${item.line}]`,
+          message: `SHOT: on line ${item.line + 1} has no [tag]. Shot data, files and takes are keyed by shot tag, so give it one (for example SHOT: [1x03-04-02] WIDE), or run "Tag all shots" to generate them.`,
+        });
+      }
       if (tag !== undefined) open.entry.tag = tag;
       open.entry.description = description;
       open.mentionText.push(description);
@@ -342,6 +376,23 @@ export function buildShotMap(scriptText: string, entities: readonly ShotMapEntit
     applyItem(open, item, entities);
   }
   close(lastLine);
+
+  // A scene with content before its first SHOT: has an implicit shot with no line to carry a tag. Only
+  // reported in a script that uses SHOT: lines at all; a script with none has no shots to tag.
+  if (hasExplicitShots) {
+    for (const implicit of implicitShots) {
+      const sceneLabel = implicit.heading !== '' ? `"${implicit.heading}"` : `scene ${implicit.scene}`;
+      issues.push({
+        code: 'untagged-implicit-shot',
+        severity: 'warning',
+        line: implicit.line,
+        path: `lines[${implicit.line}]`,
+        message: scenesWithShots.has(implicit.scene)
+          ? `${sceneLabel} (line ${implicit.line + 1}) has content before its first SHOT:, and that opening shot has no line to carry a tag. Add a SHOT: [tag] line above that content.`
+          : `${sceneLabel} (line ${implicit.line + 1}) has no SHOT: line, so its content is one shot with no line to carry a tag. Add a SHOT: [tag] line under the heading.`,
+      });
+    }
+  }
 
   return { shots, hasExplicitShots, issues };
 }
@@ -366,6 +417,13 @@ function applyItem(open: OpenShot, item: ScriptItem, entities: readonly ShotMapE
         else entry.durationSeconds = seconds;
       } else if (item.keyword === 'PAUSE') {
         entry.spoken.push(scenePause(value, item.line));
+      } else if (item.keyword in ON_SCREEN_KINDS) {
+        const { tag, rest } = matchLeadingTag(value);
+        const text = rest.trim();
+        // A prefix with no text has nothing to show, so it writes no entry.
+        if (text !== '') {
+          entry.onScreen.push({ kind: ON_SCREEN_KINDS[item.keyword], ...(tag !== undefined ? { tag } : {}), text, line: item.line });
+        }
       }
       open.lastActionLine = undefined;
       return;
@@ -544,6 +602,22 @@ function findFormatIssues(items: readonly ScriptItem[], rawLines: readonly strin
         path: `lines[${item.line}]`,
         message: `"${item.text}" (line ${item.line + 1}) is read as a transition here, but the Fountain spec only detects transitions that end in TO:, so other Fountain apps read it as action. Start it with > to force the transition.`,
       });
+      continue;
+    }
+    if (item.kind === 'parenthetical' && item.line === item.speaker.line + 1) {
+      const split = splitExtensionParenthetical(item.text);
+      if (split) {
+        issues.push({
+          code: 'cue-extension-parenthetical',
+          severity: 'warning',
+          line: item.line,
+          path: `lines[${item.line}]`,
+          message:
+            split.kind === 'split'
+              ? `"${item.text}" (line ${item.line + 1}) is directly under a cue but starts with ${split.extensions.join(' and ')}, which Fountain only reads on the character cue line. Move ${split.extensions.join(' and ')} onto the cue line (${item.speaker.name} (${split.extensions.join(') (')}))${split.remainder === '' ? ' and remove this line' : ` and keep "(${split.remainder})" as the parenthetical`}.`
+              : `"${item.text}" (line ${item.line + 1}) is directly under a cue but starts with a cue-line extension, which Fountain only reads on the cue line. It is not rewritten automatically because ${split.reason}; move the extension onto the cue by hand.`,
+        });
+      }
       continue;
     }
     if (item.kind !== 'action') continue;

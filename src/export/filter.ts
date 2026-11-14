@@ -46,7 +46,7 @@ const LOREFOUNTAIN_TITLE_KEY = /^\s*(?:order|production code)\s*:/i;
 const TITLE_CONTINUATION = /^(?: {3,}|\t)/;
 
 /** A leading `[tag]` right after a keyword that takes one. Group 1 is everything before the tag. */
-const TAGGED_LINE = /^([ \t]*!?(?:SHOT|SFX|MUSIC|AMB):[ \t]*)\[[a-z0-9]+(?:-[a-z0-9]+)*\][ \t]*/;
+const TAGGED_LINE = /^([ \t]*!?(?:SHOT|SFX|MUSIC|AMB|SUPER|TITLE CARD|CHYRON):[ \t]*)\[[a-z0-9]+(?:-[a-z0-9]+)*\][ \t]*/;
 
 /** An inline note, which never crosses a blank line. */
 const NOTE_SPAN = /\[\[(?:(?!\n[ \t]*\n)[\s\S])*?\]\]/g;
@@ -64,7 +64,11 @@ const SECTION = /^\s*#/;
 const SYNOPSIS = /^\s*=(?!=)/;
 
 /** Which content flag decides whether a convention keyword is kept. */
-const KEYWORD_GROUP: Readonly<Record<PrefixKeyword | ComicKeyword, keyof ExportContent>> = {
+const KEYWORD_GROUP: Readonly<Record<PrefixKeyword | ComicKeyword, keyof ExportContent | null>> = {
+  // On-screen text is ordinary screenplay action ("SUPER: Richmond, 1894"), so it is never removed; only its [tag] is.
+  SUPER: null,
+  'TITLE CARD': null,
+  CHYRON: null,
   SHOT: 'shots',
   POSE: 'shots',
   LIGHT: 'shots',
@@ -140,7 +144,8 @@ export function filterScript(scriptText: string, content: ExportContent): Filter
     if (slot === null || shielded[index]) continue;
     const convention = matchComicLine(slot) ?? matchPrefixLine(slot);
     if (convention) {
-      if (!content[KEYWORD_GROUP[convention.keyword]]) {
+      const group = KEYWORD_GROUP[convention.keyword];
+      if (group !== null && !content[group]) {
         slots[index] = null;
         removedConventionLines += 1;
       } else if (!content.tags) {
