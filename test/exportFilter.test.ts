@@ -126,16 +126,8 @@ describe('filterScript', () => {
   });
 
   it('removes LOOK: lines with the shot lines, in the pure preset only', () => {
-    const script = 'INT. A - DAY
-
-LOOK: MARA school uniform
-
-Mara waits.
-';
-    expect(filter(script, {}, 'pure')).toBe('INT. A - DAY
-
-Mara waits.
-');
+    const script = 'INT. A - DAY\n\nLOOK: MARA school uniform\n\nMara waits.\n';
+    expect(filter(script, {}, 'pure')).toBe('INT. A - DAY\n\nMara waits.\n');
     expect(filter(script, {}, 'production')).toContain('LOOK: MARA school uniform');
   });
 
