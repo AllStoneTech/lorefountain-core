@@ -11,6 +11,7 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 ### Added
 
 - **`producer.lfp.json`:** `production` (`type`, one of the nine production types in `PRODUCTION_TYPES`, and optional `outputs`), `budget` (`maxJobsPerRun`, `maxCostPerRun`, `maxCostTotal`), and `shots[tag].treatment` (`still`, `animated` or `card`, in `SHOT_TREATMENTS`). All optional; existing files stay valid.
+- **`producer.lfp.json`:** `agents`, the language model each Producer agent uses (`provider` and `model`, by agent id). Optional.
 - **`producer/takes.lfp.json`:** optional `references`, accepted takes for Producer-made reference images, keyed `<entity-id>:<version>[:<look>]`. These stay in the Producer's records and never go into LoreFountain's manifests.
 
 ## [0.3.0] - 2026-11-13

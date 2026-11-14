@@ -195,6 +195,23 @@ export const producerConfigSchema = z
       })
       .strict()
       .optional(),
+    /**
+     * Which language model each agent uses, by agent id (e.g. `promptDirector`,
+     * `takeReviewer`). Agents not listed use the Producer's defaults.
+     */
+    agents: z
+      .record(
+        z.string().min(1),
+        z
+          .object({
+            /** The model provider's id, e.g. `anthropic`. */
+            provider: z.string().min(1),
+            /** The provider's model id, e.g. `claude-haiku-5-5`. */
+            model: z.string().min(1),
+          })
+          .strict(),
+      )
+      .optional(),
     /** Spending caps, in US dollars. A run stops before a call that would cross one. */
     budget: z
       .object({

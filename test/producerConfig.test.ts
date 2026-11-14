@@ -130,3 +130,11 @@ describe('Producer file names (ADR-0009)', () => {
     expect(await readProducerConfig(root)).toEqual({ ok: true, found: false });
   });
 });
+
+describe('agents', () => {
+  it('accepts a model per agent and refuses unknown keys or empty ids', () => {
+    expect(producerConfigSchema.safeParse({ schema_version: 1, agents: { promptDirector: { provider: 'anthropic', model: 'claude-haiku-5-5' } } }).success).toBe(true);
+    expect(producerConfigSchema.safeParse({ schema_version: 1, agents: { promptDirector: { provider: 'anthropic', model: '' } } }).success).toBe(false);
+    expect(producerConfigSchema.safeParse({ schema_version: 1, agents: { promptDirector: { provider: 'anthropic', model: 'x', temperature: 1 } } }).success).toBe(false);
+  });
+});
