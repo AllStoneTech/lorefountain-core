@@ -66,6 +66,8 @@ const SYNOPSIS = /^\s*=(?!=)/;
 /** Which content flag decides whether a convention keyword is kept. */
 const KEYWORD_GROUP: Readonly<Record<PrefixKeyword | ComicKeyword, keyof ExportContent | null>> = {
   // On-screen text is ordinary screenplay action ("SUPER: Richmond, 1894"), so it is never removed; only its [tag] is.
+  // A LOOK: line is wardrobe direction for production, grouped with shots.
+  LOOK: 'shots',
   SUPER: null,
   'TITLE CARD': null,
   CHYRON: null,

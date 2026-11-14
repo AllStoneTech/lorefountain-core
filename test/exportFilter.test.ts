@@ -125,6 +125,20 @@ describe('filterScript', () => {
     expect(filter(script, { tags: false })).toBe('INT. A - DAY\n\nSUPER: Richmond, 1894\n\nTITLE CARD: ACT ONE\n\nCHYRON: LIVE\n');
   });
 
+  it('removes LOOK: lines with the shot lines, in the pure preset only', () => {
+    const script = 'INT. A - DAY
+
+LOOK: MARA school uniform
+
+Mara waits.
+';
+    expect(filter(script, {}, 'pure')).toBe('INT. A - DAY
+
+Mara waits.
+');
+    expect(filter(script, {}, 'production')).toContain('LOOK: MARA school uniform');
+  });
+
   it('removes a convention line inside an action block without splitting the block', () => {
     expect(filter('Rain.\nSFX: thunder\nMore rain.\n', { sound: false })).toBe('Rain.\nMore rain.\n');
   });

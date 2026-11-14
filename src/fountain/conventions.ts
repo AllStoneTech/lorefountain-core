@@ -67,6 +67,8 @@ export const PREFIX_KEYWORDS = [
   'SUPER',
   'TITLE CARD',
   'CHYRON',
+  // A character's wardrobe look from this line on: `LOOK: CHARACTER label`.
+  'LOOK',
 ] as const;
 
 /** One LoreFountain prefix keyword. */

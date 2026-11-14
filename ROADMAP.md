@@ -28,7 +28,7 @@ Done items move to `CHANGELOG.md`.
 Each lands in Core first, then in the extension (diagnostics, quick fixes, docs) and the Producer.
 
 - [x] `SUPER:`, `TITLE CARD:` and `CHYRON:` prefix lines, each with an optional `[tag]`, written to `onScreen` with `kind` `super`, `titleCard` and `chyron`. Done in Core (unreleased); the extension and the Producer still have to adopt it.
-- [ ] `LOOK: CHARACTER label` lines, validated against the character's looks, and a per-script breakdown (each scene's cast, looks, locations, props, sounds and on-screen text).
+- [x] `LOOK: CHARACTER label` lines, validated against the character's looks, and a per-script breakdown (each scene's cast, looks, locations, props, sounds and on-screen text). Done in Core (unreleased); the extension and the Producer still have to adopt it.
 - [ ] Locked scene numbers (Fountain `#n#`), with unlock, renumber and an old-to-new map.
 - [ ] Several reference images per character version and look, each optionally labelled with its angle.
 - [ ] Structured pronunciation on entities and glossary terms: a string, or `{ respelling, ipa }`.

@@ -28,6 +28,12 @@
  *   a character cue (`fountain/misread.ts`, Core ADR-0005). LoreFountain still
  *   reads it as a convention line.
  *
+ * - `look-unknown-character` (warning) and `look-missing-label` (warning): a
+ *   `LOOK: CHARACTER label` line whose character isn't a known character
+ *   entity, or that has no label after the character. Neither changes the
+ *   character's look. Checking the label against the character's `looks` in
+ *   `characters.json` is `shots/looks.ts`'s job, since it needs the manifest.
+ *
  * Per shot, `spoken` holds every dialogue line, parenthetical (pauses and
  * other directions, wording kept), `PAUSE:` and lyric line, each with its
  * `line`, so `spoken`, `action` and `onScreen` merge into one timeline.
@@ -136,6 +142,23 @@ export interface OnScreenText {
   line: number;
 }
 
+/** A `LOOK: CHARACTER label` line: from here on, this character is in this look. */
+export interface ShotLook {
+  /** The character's name as it resolved (the entity name or alias written in the line). */
+  character: string;
+  /** The character entity's id. */
+  characterEntity: string;
+  /** The look label as written, e.g. `school uniform`. */
+  look: string;
+  line: number;
+}
+
+/** A character's look in effect at the end of a shot. */
+export interface ActiveLook {
+  characterEntity: string;
+  look: string;
+}
+
 /** One shot in the `.shots.json` sidecar. */
 export interface ShotMapEntry {
   /** Scene number (1-based), or 0 for content before the first scene heading. */
@@ -164,6 +187,10 @@ export interface ShotMapEntry {
   action: ShotAction[];
   /** On-screen text in the shot, in script order. */
   onScreen: OnScreenText[];
+  /** The `LOOK:` lines written in this shot, in script order. Absent when there are none. */
+  looks?: ShotLook[];
+  /** Each character's look in effect at the end of the shot, carried from earlier shots and scenes of the script until their next `LOOK:`. Absent when no character has one. */
+  activeLooks?: ActiveLook[];
   /** The last Fountain transition inside the shot's lines, as Fountain reads it (no leading `>`), e.g. `DISSOLVE TO:`. */
   transition?: string;
   /** Deduplicated ids of entities mentioned in the shot's own text. */
@@ -197,7 +224,10 @@ export interface ScriptShotIssue extends ValidationIssue {
     | 'panels-not-derived'
     | 'cue-extension-parenthetical'
     | 'untagged-shot'
-    | 'untagged-implicit-shot';
+    | 'untagged-implicit-shot'
+    | 'look-unknown-character'
+    | 'look-missing-label'
+    | 'unknown-look';
   /** `warning` is reported like every other non-blocking warning; `info` is a note. */
   severity: 'warning' | 'info';
   /** 0-based line the issue is on. */
@@ -294,6 +324,9 @@ export function buildShotMap(scriptText: string, entities: readonly ShotMapEntit
   const implicitShots: Array<{ line: number; heading: string; scene: number }> = [];
   const scenesWithShots = new Set<number>();
 
+  /** Each character entity's look in effect so far, by entity id; carries across scenes within the script. */
+  const activeLooks = new Map<string, string>();
+
   const close = (endLine: number): void => {
     if (!open) return;
     if (open.explicit || open.hasContent) {
@@ -304,6 +337,7 @@ export function buildShotMap(scriptText: string, entities: readonly ShotMapEntit
       entry.lines.end = Math.max(entry.lines.start, endLine);
       entry.cues = cueLines.filter((line) => line >= entry.lines.start && line <= entry.lines.end);
       entry.entities = extractMentionTargets(open.mentionText.join('\n'), candidates).map((target) => target.id);
+      if (activeLooks.size > 0) entry.activeLooks = [...activeLooks].map(([characterEntity, look]) => ({ characterEntity, look }));
       shots.push(inFieldOrder(entry));
     }
     open = undefined;
@@ -373,6 +407,10 @@ export function buildShotMap(scriptText: string, entities: readonly ShotMapEntit
     // Content before the first scene heading: scene 0, shot 0.
     open ??= openShot(item.line, 0, false);
     open.hasContent = true;
+    if (item.kind === 'directive' && item.keyword === 'LOOK') {
+      applyLook(open, item.rest, item.line, entities, activeLooks, issues);
+      continue;
+    }
     applyItem(open, item, entities);
   }
   close(lastLine);
@@ -465,6 +503,74 @@ function applyItem(open: OpenShot, item: ScriptItem, entities: readonly ShotMapE
       break;
   }
   open.lastActionLine = undefined;
+}
+
+/**
+ * Split a `LOOK:` line's text into the character and the look label. The
+ * character is the longest character name or alias the text starts with (a
+ * name can be several words, `DR. ADA OKAFOR`), ending at a space or the end;
+ * the rest, minus a leading `-`, an en or em dash or `:`, is the label.
+ *
+ * @param text - The text after `LOOK:`.
+ * @param entities - Every known entity; only characters are matched.
+ * @returns The character entity and name, and the label (possibly empty); `undefined` when the text starts with no known character.
+ */
+export function parseLookText(
+  text: string,
+  entities: readonly ShotMapEntity[],
+): { characterEntity: string; character: string; label: string } | undefined {
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
+  let best: { characterEntity: string; character: string } | undefined;
+  for (const entity of entities) {
+    if (entity.type !== 'character') continue;
+    for (const name of entity.names) {
+      const key = name.trim().toLowerCase();
+      if (!key || !lower.startsWith(key)) continue;
+      const next = lower.charAt(key.length);
+      if (next !== '' && !/[\s:]/.test(next)) continue;
+      if (best === undefined || name.trim().length > best.character.length) best = { characterEntity: entity.id, character: name.trim() };
+    }
+  }
+  if (!best) return undefined;
+  const label = trimmed.slice(best.character.length).replace(/^\s*[-–—:]?\s*/, '').trim();
+  return { ...best, label };
+}
+
+/** Apply a `LOOK:` line: record it on the shot and update the character's active look, or report why it can't. */
+function applyLook(
+  open: OpenShot,
+  rest: string,
+  line: number,
+  entities: readonly ShotMapEntity[],
+  activeLooks: Map<string, string>,
+  issues: ScriptShotIssue[],
+): void {
+  open.lastActionLine = undefined;
+  const parsed = parseLookText(rest, entities);
+  if (!parsed) {
+    issues.push({
+      code: 'look-unknown-character',
+      severity: 'warning',
+      line,
+      path: `lines[${line}]`,
+      message: `LOOK: on line ${line + 1} doesn't start with a known character, so it was ignored. Write the character's name or alias (as in their world file) and then the look: LOOK: MARA school uniform.`,
+    });
+    return;
+  }
+  if (parsed.label === '') {
+    issues.push({
+      code: 'look-missing-label',
+      severity: 'warning',
+      line,
+      path: `lines[${line}]`,
+      message: `LOOK: ${parsed.character} on line ${line + 1} has no look after the name, so it was ignored. Write the look's label: LOOK: ${parsed.character} school uniform.`,
+    });
+    return;
+  }
+  activeLooks.set(parsed.characterEntity, parsed.label);
+  (open.entry.looks ??= []).push({ character: parsed.character, characterEntity: parsed.characterEntity, look: parsed.label, line });
+  open.mentionText.push(parsed.character);
 }
 
 /** Build a `{ pause: 'scene' }` entry from a `PAUSE:` line's text. */
@@ -690,6 +796,8 @@ function inFieldOrder(entry: ShotMapEntry): ShotMapEntry {
     spoken: entry.spoken,
     action: entry.action,
     onScreen: entry.onScreen,
+    looks: entry.looks,
+    activeLooks: entry.activeLooks,
     transition: entry.transition,
     entities: entry.entities,
     cues: entry.cues,
