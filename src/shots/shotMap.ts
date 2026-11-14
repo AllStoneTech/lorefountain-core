@@ -533,7 +533,7 @@ export function parseLookText(
     }
   }
   if (!best) return undefined;
-  const label = trimmed.slice(best.character.length).replace(/^\s*[-–—:]?\s*/, '').trim();
+  const label = trimmed.slice(best.character.length).replace(/^\s*[-–—:]?\s*/, '').trim().replace(/\s+/g, ' ');
   return { ...best, label };
 }
 
