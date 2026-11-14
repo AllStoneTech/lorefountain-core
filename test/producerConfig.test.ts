@@ -44,6 +44,28 @@ describe('producerConfigSchema', () => {
     expect(producerConfigSchema.safeParse({ schema_version: 1 }).success).toBe(true);
   });
 
+  it('accepts a production type with outputs, a budget, and a treatment per shot', () => {
+    const config = {
+      schema_version: 1,
+      production: { type: 'narrated_series', outputs: ['video-16x9', 'podcast'] },
+      budget: { maxJobsPerRun: 5, maxCostPerRun: 2, maxCostTotal: 50 },
+      shots: { a: { treatment: 'animated' }, b: { treatment: 'still', motion: 'ken-burns-in' }, c: { treatment: 'card' } },
+    };
+    expect(producerConfigSchema.safeParse(config).success).toBe(true);
+  });
+
+  it('rejects an unknown production type, output or treatment, and a non-positive job cap', () => {
+    const bad = [
+      { production: { type: 'feature_film' } },
+      { production: { type: 'audio_drama', outputs: ['vhs'] } },
+      { production: { type: 'audio_drama', outputs: [] } },
+      { shots: { a: { treatment: 'rotoscope' } } },
+      { budget: { maxJobsPerRun: 0 } },
+      { budget: { maxCostPerRun: -1 } },
+    ];
+    for (const extra of bad) expect(producerConfigSchema.safeParse({ schema_version: 1, ...extra }).success, JSON.stringify(extra)).toBe(false);
+  });
+
   it('rejects unknown keys, so typos are caught', () => {
     expect(producerConfigSchema.safeParse({ schema_version: 1, castng: {} }).success).toBe(false);
     expect(producerConfigSchema.safeParse({ schema_version: 1, shots: { a: { audio_offset: 1 } } }).success).toBe(false);

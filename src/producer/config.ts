@@ -85,9 +85,43 @@ export const textStyleSchema = z
   .strict();
 export type TextStyle = z.infer<typeof textStyleSchema>;
 
+/**
+ * How the Producer makes a project: one coordinator per production type
+ * (Producer `docs/COORDINATORS.md`). Separate from LoreFountain's
+ * `project_type`, which says how a work is written.
+ */
+export const PRODUCTION_TYPES = [
+  'narrated_series',
+  'animatic',
+  'audio_drama',
+  'motion_comic',
+  'comic_pages',
+  'dialogue_video',
+  'audiobook',
+  'table_kit',
+  'explainer',
+] as const;
+export const productionTypeSchema = z.enum(PRODUCTION_TYPES);
+export type ProductionType = z.infer<typeof productionTypeSchema>;
+
+/** What a production delivers. */
+export const PRODUCTION_OUTPUTS = ['video-16x9', 'video-9x16', 'podcast', 'captions', 'segments-9x16', 'audiobook', 'session-pack'] as const;
+export const productionOutputSchema = z.enum(PRODUCTION_OUTPUTS);
+export type ProductionOutput = z.infer<typeof productionOutputSchema>;
+
+/**
+ * How one shot's picture is made: a still with a camera move, a generated
+ * animation clip (made from the shot's still), or a title card.
+ */
+export const SHOT_TREATMENTS = ['still', 'animated', 'card'] as const;
+export const shotTreatmentSchema = z.enum(SHOT_TREATMENTS);
+export type ShotTreatment = z.infer<typeof shotTreatmentSchema>;
+
 /** Per-shot fixes made on the timeline, keyed by shot tag (spec, "The timeline"). */
 export const shotFixSchema = z
   .object({
+    /** How the shot's picture is made; a shot without one is a `still` (or a `card` when it's only on-screen text). */
+    treatment: shotTreatmentSchema.optional(),
     /** Seconds to shift the recording against the picture (lip sync). */
     audioOffset: z.number().optional(),
     /** Seconds trimmed from a clip's start and end. */
@@ -129,6 +163,26 @@ export const producerConfigSchema = z
         commercial: z.boolean().optional(),
         /** The starting profile this project came from, e.g. `short-dialogue`. */
         profile: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    /** How the project is produced. When absent, the Producer suggests a type from LoreFountain's `project_type`. */
+    production: z
+      .object({
+        type: productionTypeSchema,
+        outputs: z.array(productionOutputSchema).min(1).optional(),
+      })
+      .strict()
+      .optional(),
+    /** Spending caps, in US dollars. A run stops before a call that would cross one. */
+    budget: z
+      .object({
+        /** Most jobs one run may do (default 5). */
+        maxJobsPerRun: z.number().int().positive().optional(),
+        /** Most one run may spend (default 2). */
+        maxCostPerRun: z.number().nonnegative().optional(),
+        /** Most the project may spend in total, across runs. */
+        maxCostTotal: z.number().nonnegative().optional(),
       })
       .strict()
       .optional(),

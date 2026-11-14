@@ -60,6 +60,12 @@ export const takesFileSchema = z
     lines: z.record(z.string(), takeSchema),
     /** Keyed by cue tag. */
     cues: z.record(z.string(), takeSchema),
+    /**
+     * Producer-made references (character sheets, location plates), keyed by
+     * `<entity-id>:<version>` or `<entity-id>:<version>:<look>`. Optional, so
+     * files written before references existed stay valid.
+     */
+    references: z.record(z.string(), takeSchema).optional(),
   })
   .strict();
 export type TakesFile = z.infer<typeof takesFileSchema>;

@@ -18,6 +18,7 @@ Done items move to `CHANGELOG.md`.
 - [ ] **Published file formats**: Zod schemas for `.shots.json` and `.cues.json` as read from disk, with `schema_version` checks, so a consumer can tell when a project's files are newer than it supports.
 - [x] **`producer.json` schema** and tolerant reader (`producer/config`).
 - [x] **`producer/` record schemas** for accepted takes and provenance, plus script-text fingerprints for stale detection.
+- [x] `production`, `budget` and per-shot `treatment` in `producer.json`, and reference takes in `takes.json` (for the Producer's job planning).
 - [ ] Consent records (`producer/consent.json`), for likeness and voice consent.
 - [ ] Match line recordings by fingerprint as well as position, so inserting a line doesn't make every later recording look stale (Producer spec, "Stale assets").
 

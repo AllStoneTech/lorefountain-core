@@ -41,6 +41,14 @@ describe('readTakes', () => {
     expect(result.ok && result.value.lines['a-wide.1'].acceptedBy).toBe('Louis');
   });
 
+  it('reads references when present and accepts files written before they existed', async () => {
+    put('takes.json', { schema_version: 1, shots: {}, lines: {}, cues: {}, references: { 'mara:1': TAKE, 'mara:1:storm-gear': TAKE } });
+    const result = await readTakes(root);
+    expect(result.ok && Object.keys(result.value.references ?? {})).toEqual(['mara:1', 'mara:1:storm-gear']);
+    put('takes.json', { schema_version: 1, shots: {}, lines: {}, cues: {} });
+    expect(await readTakes(root)).toMatchObject({ ok: true, found: true });
+  });
+
   it('rejects a bad fingerprint, a bad date and unknown keys, and reports newer versions unparsed', async () => {
     put('takes.json', { schema_version: 1, shots: { a: { ...TAKE, fingerprint: 'md5-x' } }, lines: {}, cues: {} });
     expect(await readTakes(root)).toMatchObject({ ok: false, reason: 'invalid-schema' });
