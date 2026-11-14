@@ -4,6 +4,27 @@ Decisions about Core itself. Earlier decisions (ADR-0038 shot maps, ADR-0040 Fou
 
 ---
 
+## ADR-0009 — Files LoreFountain-Producer owns carry `.lfp.` in their names
+
+**Date:** 2026-11-14 · **Status:** Accepted (owner's instruction, 2026-11-14: "all files that you own should be named *.lfp.*").
+
+### 1. Decision
+
+Every file LoreFountain-Producer creates or owns has `.lfp.` before its extension, wherever it lives. In a project: `producer.lfp.json` (was `producer.json`), `producer/takes.lfp.json` and `producer/provenance.lfp.json` (were `takes.json` and `provenance.json`). Core publishes the names (`PRODUCER_CONFIG_FILE_NAME`, `TAKES_FILE`, `PROVENANCE_FILE`), the marker (`PRODUCER_FILE_MARKER`) and a predicate (`isProducerFileName`). Outside a project, the Producer applies the same rule to what it writes: inbox notes, renders, timing reports, Resolve exports, vault copies, cached segments, and its queue and lock files.
+
+The old names are exported as `LEGACY_*` so the Producer can tell a project to rename them. Readers do not fall back to them: the Producer has never been released and no project but test copies has these files.
+
+### 2. Why
+
+It matches LoreFountain's own `.lf.md` suffix (ADR-0004): a file listing shows at a glance which files are LoreFountain's (`.lf.`) and which are the Producer's (`.lfp.`), a glob such as `**/*.lfp.*` selects them for editors, ignore files or backups, and nobody's own file is ever taken for one. Files the creator makes and drops in for the Producer keep the creator's names.
+
+### 3. Consequences
+
+- A minor-version format change while Core is 0.x; the Producer is the only reader.
+- Temporary files the Producer deletes within the same command (an ffmpeg concat list, a working mix) are not covered: nobody sees them.
+
+---
+
 ## ADR-0008 — Comic script layout for exports, PDF bookmarks and the export language
 
 **Date:** 2026-11-13 · **Status:** Accepted (owner approved the design on 2026-11-13). Extension side: VSCE ADR-0052.

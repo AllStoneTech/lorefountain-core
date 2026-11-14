@@ -1,12 +1,12 @@
 /**
- * Unit tests for `producer/config.ts`: the `producer.json` schema and reader.
+ * Unit tests for `producer/config.ts`: the `producer.lfp.json` schema and reader.
  */
 
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { producerConfigSchema, readProducerConfig } from '../src/producer/config';
+import { isProducerFileName, LEGACY_PRODUCER_CONFIG_FILE_NAME, PRODUCER_CONFIG_FILE_NAME, producerConfigSchema, readProducerConfig } from '../src/producer/config';
 
 let root: string;
 
@@ -18,9 +18,9 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-/** Write `producer.json` with `value` serialized, or raw text. */
+/** Write `producer.lfp.json` with `value` serialized, or raw text. */
 function write(value: unknown): void {
-  writeFileSync(join(root, 'producer.json'), typeof value === 'string' ? value : JSON.stringify(value), 'utf8');
+  writeFileSync(join(root, 'producer.lfp.json'), typeof value === 'string' ? value : JSON.stringify(value), 'utf8');
 }
 
 const FULL = {
@@ -109,5 +109,24 @@ describe('readProducerConfig', () => {
   it('reports a newer schema version before parsing its fields', async () => {
     write({ schema_version: 2, somethingNew: true });
     expect(await readProducerConfig(root)).toMatchObject({ ok: false, reason: 'newer-version' });
+  });
+});
+
+describe('Producer file names (ADR-0009)', () => {
+  it('names the settings file with the .lfp. marker and keeps the legacy name for migration', () => {
+    expect(PRODUCER_CONFIG_FILE_NAME).toBe('producer.lfp.json');
+    expect(LEGACY_PRODUCER_CONFIG_FILE_NAME).toBe('producer.json');
+  });
+
+  it('recognizes Producer-owned names by their last segment, in any case', () => {
+    expect(isProducerFileName('producer.lfp.json')).toBe(true);
+    expect(isProducerFileName('renders/1x01/1x01-16x9.LFP.mp4')).toBe(true);
+    expect(isProducerFileName('producer.json')).toBe(false);
+    expect(isProducerFileName('my.lfp.folder/notes.md')).toBe(false);
+  });
+
+  it('does not read the legacy file name', async () => {
+    writeFileSync(join(root, 'producer.json'), JSON.stringify({ schema_version: 1 }), 'utf8');
+    expect(await readProducerConfig(root)).toEqual({ ok: true, found: false });
   });
 });

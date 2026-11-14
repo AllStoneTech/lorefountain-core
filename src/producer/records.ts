@@ -2,9 +2,9 @@
  * The published formats of the records LoreFountain-Producer keeps in a
  * project's `producer/` folder, and read-only readers for them:
  *
- * - `producer/takes.json`: which file fulfills each shot tag, spoken line
+ * - `producer/takes.lfp.json`: which file fulfills each shot tag, spoken line
  *   (`<shot-tag>.<n>`) and cue tag.
- * - `producer/provenance.json`: where each accepted file came from, keyed
+ * - `producer/provenance.lfp.json`: where each accepted file came from, keyed
  *   by the file's fingerprint (Producer spec, "Rights and provenance").
  *
  * Exports the schemas, inferred types, file paths, {@link readTakes},
@@ -27,8 +27,12 @@ import { z } from 'zod';
 export const PRODUCER_RECORDS_VERSION = 1;
 
 /** Paths of the record files, relative to the project root. */
-export const TAKES_FILE = path.join('producer', 'takes.json');
-export const PROVENANCE_FILE = path.join('producer', 'provenance.json');
+export const TAKES_FILE = path.join('producer', 'takes.lfp.json');
+export const PROVENANCE_FILE = path.join('producer', 'provenance.lfp.json');
+
+/** The record files' paths before ADR-0009, reported so a project can rename them. */
+export const LEGACY_TAKES_FILE = path.join('producer', 'takes.json');
+export const LEGACY_PROVENANCE_FILE = path.join('producer', 'provenance.json');
 
 /** A content fingerprint: `sha256-` and 64 hex digits. */
 export const fingerprintSchema = z.string().regex(/^sha256-[0-9a-f]{64}$/, 'expected sha256- and 64 hex digits');
@@ -50,7 +54,7 @@ export const takeSchema = z
   .strict();
 export type Take = z.infer<typeof takeSchema>;
 
-/** `producer/takes.json`. */
+/** `producer/takes.lfp.json`. */
 export const takesFileSchema = z
   .object({
     schema_version: z.literal(PRODUCER_RECORDS_VERSION),
@@ -86,7 +90,7 @@ export const provenanceEntrySchema = z
   .strict();
 export type ProvenanceEntry = z.infer<typeof provenanceEntrySchema>;
 
-/** `producer/provenance.json`. */
+/** `producer/provenance.lfp.json`. */
 export const provenanceFileSchema = z
   .object({
     schema_version: z.literal(PRODUCER_RECORDS_VERSION),
@@ -112,7 +116,7 @@ export function emptyProvenance(): ProvenanceFile {
 }
 
 /**
- * Read `producer/takes.json`. A missing file reads as empty.
+ * Read `producer/takes.lfp.json`. A missing file reads as empty.
  *
  * @param projectRoot - Absolute path to the project root.
  * @returns The takes, or a described failure. Never throws for a bad file.
@@ -122,7 +126,7 @@ export function readTakes(projectRoot: string): Promise<ReadRecordResult<TakesFi
 }
 
 /**
- * Read `producer/provenance.json`. A missing file reads as empty.
+ * Read `producer/provenance.lfp.json`. A missing file reads as empty.
  *
  * @param projectRoot - Absolute path to the project root.
  * @returns The provenance records, or a described failure. Never throws for a bad file.

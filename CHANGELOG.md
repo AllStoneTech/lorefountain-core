@@ -4,10 +4,14 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Producer file names carry `.lfp.`** (ADR-0009): `producer.json` is now `producer.lfp.json`, and `producer/takes.json` and `producer/provenance.json` are `producer/takes.lfp.json` and `producer/provenance.lfp.json`. New: `PRODUCER_FILE_MARKER`, `isProducerFileName`, and the old names as `LEGACY_PRODUCER_CONFIG_FILE_NAME`, `LEGACY_TAKES_FILE` and `LEGACY_PROVENANCE_FILE`. The readers don't fall back to the old names.
+
 ### Added
 
-- **`producer.json`:** `production` (`type`, one of the nine production types in `PRODUCTION_TYPES`, and optional `outputs`), `budget` (`maxJobsPerRun`, `maxCostPerRun`, `maxCostTotal`), and `shots[tag].treatment` (`still`, `animated` or `card`, in `SHOT_TREATMENTS`). All optional; existing files stay valid.
-- **`producer/takes.json`:** optional `references`, accepted takes for Producer-made reference images, keyed `<entity-id>:<version>[:<look>]`. These stay in the Producer's records and never go into LoreFountain's manifests.
+- **`producer.lfp.json`:** `production` (`type`, one of the nine production types in `PRODUCTION_TYPES`, and optional `outputs`), `budget` (`maxJobsPerRun`, `maxCostPerRun`, `maxCostTotal`), and `shots[tag].treatment` (`still`, `animated` or `card`, in `SHOT_TREATMENTS`). All optional; existing files stay valid.
+- **`producer/takes.lfp.json`:** optional `references`, accepted takes for Producer-made reference images, keyed `<entity-id>:<version>[:<look>]`. These stay in the Producer's records and never go into LoreFountain's manifests.
 
 ## [0.3.0] - 2026-11-13
 

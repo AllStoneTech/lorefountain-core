@@ -1,12 +1,13 @@
 /**
- * The published format of `producer.json`, LoreFountain-Producer's settings
+ * The published format of `producer.lfp.json`, LoreFountain-Producer's settings
  * file at a project's root, and a read-only reader for it. The Producer
  * owns and writes the file; LoreFountain reads it (tolerantly) to show
  * production status. Both validate against this one schema (Producer spec,
  * "Reading each other's data").
  *
  * Exports {@link producerConfigSchema}, its parts, the inferred types,
- * {@link PRODUCER_CONFIG_VERSION} and {@link readProducerConfig}.
+ * {@link PRODUCER_CONFIG_VERSION}, the file names ({@link PRODUCER_CONFIG_FILE_NAME},
+ * {@link PRODUCER_FILE_MARKER}, {@link isProducerFileName}) and {@link readProducerConfig}.
  *
  * Gotchas:
  * - Keys are camelCase, except `schema_version`, matching the sidecars.
@@ -26,8 +27,28 @@ import { z } from 'zod';
 /** The `schema_version` this module reads and the Producer writes. */
 export const PRODUCER_CONFIG_VERSION = 1;
 
+/**
+ * The marker in the name of every file LoreFountain-Producer owns, in a
+ * project or anywhere else it writes (ADR-0009): `producer.lfp.json`,
+ * `producer/takes.lfp.json`, a render's `1x01-16x9.lfp.mp4`.
+ */
+export const PRODUCER_FILE_MARKER = '.lfp.';
+
 /** Filename of the Producer's settings file, at the project root. */
-export const PRODUCER_CONFIG_FILE_NAME = 'producer.json';
+export const PRODUCER_CONFIG_FILE_NAME = 'producer.lfp.json';
+
+/** The settings file's name before ADR-0009, reported so a project can rename it. */
+export const LEGACY_PRODUCER_CONFIG_FILE_NAME = 'producer.json';
+
+/**
+ * Whether a file name follows the Producer's naming (ADR-0009).
+ *
+ * @param fileName - A file name or path; only the last segment is checked, case-insensitively.
+ * @returns `true` when the name contains `.lfp.`.
+ */
+export function isProducerFileName(fileName: string): boolean {
+  return path.basename(fileName).toLowerCase().includes(PRODUCER_FILE_MARKER);
+}
 
 /** The asset types a project sources (spec, "Sources per asset type"). */
 export const PRODUCER_ASSET_TYPES = ['voice', 'stills', 'clips', 'music', 'sfx'] as const;
@@ -218,7 +239,7 @@ export const producerConfigSchema = z
   })
   .strict();
 
-/** A parsed `producer.json`. */
+/** A parsed `producer.lfp.json`. */
 export type ProducerConfig = z.infer<typeof producerConfigSchema>;
 
 /** Outcome of {@link readProducerConfig}. */
@@ -228,7 +249,7 @@ export type ReadProducerConfigResult =
   | { ok: false; reason: 'malformed-json' | 'invalid-schema' | 'newer-version'; message: string };
 
 /**
- * Read and validate `producer.json` from a project root. Never throws for a
+ * Read and validate `producer.lfp.json` from a project root. Never throws for a
  * bad file.
  *
  * @param projectRoot - Absolute path to the project root.
@@ -255,7 +276,7 @@ export async function readProducerConfig(projectRoot: string): Promise<ReadProdu
     return {
       ok: false,
       reason: 'newer-version',
-      message: `producer.json is schema version ${version.data.schema_version}; this reader supports version ${PRODUCER_CONFIG_VERSION}. Update to read it.`,
+      message: `producer.lfp.json is schema version ${version.data.schema_version}; this reader supports version ${PRODUCER_CONFIG_VERSION}. Update to read it.`,
     };
   }
 

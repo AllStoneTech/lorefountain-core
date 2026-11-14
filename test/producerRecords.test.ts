@@ -36,42 +36,42 @@ describe('readTakes', () => {
   });
 
   it('reads valid takes', async () => {
-    put('takes.json', { schema_version: 1, shots: { 'a-wide': TAKE }, lines: { 'a-wide.1': { ...TAKE, acceptedBy: 'Louis' } }, cues: {} });
+    put('takes.lfp.json', { schema_version: 1, shots: { 'a-wide': TAKE }, lines: { 'a-wide.1': { ...TAKE, acceptedBy: 'Louis' } }, cues: {} });
     const result = await readTakes(root);
     expect(result.ok && result.value.lines['a-wide.1'].acceptedBy).toBe('Louis');
   });
 
   it('reads references when present and accepts files written before they existed', async () => {
-    put('takes.json', { schema_version: 1, shots: {}, lines: {}, cues: {}, references: { 'mara:1': TAKE, 'mara:1:storm-gear': TAKE } });
+    put('takes.lfp.json', { schema_version: 1, shots: {}, lines: {}, cues: {}, references: { 'mara:1': TAKE, 'mara:1:storm-gear': TAKE } });
     const result = await readTakes(root);
     expect(result.ok && Object.keys(result.value.references ?? {})).toEqual(['mara:1', 'mara:1:storm-gear']);
-    put('takes.json', { schema_version: 1, shots: {}, lines: {}, cues: {} });
+    put('takes.lfp.json', { schema_version: 1, shots: {}, lines: {}, cues: {} });
     expect(await readTakes(root)).toMatchObject({ ok: true, found: true });
   });
 
   it('rejects a bad fingerprint, a bad date and unknown keys, and reports newer versions unparsed', async () => {
-    put('takes.json', { schema_version: 1, shots: { a: { ...TAKE, fingerprint: 'md5-x' } }, lines: {}, cues: {} });
+    put('takes.lfp.json', { schema_version: 1, shots: { a: { ...TAKE, fingerprint: 'md5-x' } }, lines: {}, cues: {} });
     expect(await readTakes(root)).toMatchObject({ ok: false, reason: 'invalid-schema' });
-    put('takes.json', { schema_version: 1, shots: { a: { ...TAKE, acceptedAt: 'yesterday' } }, lines: {}, cues: {} });
+    put('takes.lfp.json', { schema_version: 1, shots: { a: { ...TAKE, acceptedAt: 'yesterday' } }, lines: {}, cues: {} });
     expect(await readTakes(root)).toMatchObject({ ok: false, reason: 'invalid-schema' });
-    put('takes.json', { schema_version: 1, shots: {}, lines: {}, cues: {}, extra: 1 });
+    put('takes.lfp.json', { schema_version: 1, shots: {}, lines: {}, cues: {}, extra: 1 });
     expect(await readTakes(root)).toMatchObject({ ok: false, reason: 'invalid-schema' });
-    put('takes.json', { schema_version: 3 });
+    put('takes.lfp.json', { schema_version: 3 });
     expect(await readTakes(root)).toMatchObject({ ok: false, reason: 'newer-version' });
-    put('takes.json', '{');
+    put('takes.lfp.json', '{');
     expect(await readTakes(root)).toMatchObject({ ok: false, reason: 'malformed-json' });
   });
 });
 
 describe('readProvenance', () => {
   it('reads provenance keyed by fingerprint', async () => {
-    put('provenance.json', { schema_version: 1, files: { [HASH]: { provider: 'manual', originalName: 'a-wide.png', importedAt: '2026-11-06T12:00:00Z' } } });
+    put('provenance.lfp.json', { schema_version: 1, files: { [HASH]: { provider: 'manual', originalName: 'a-wide.png', importedAt: '2026-11-06T12:00:00Z' } } });
     const result = await readProvenance(root);
     expect(result.ok && result.value.files[HASH].provider).toBe('manual');
   });
 
   it('rejects a key that is not a fingerprint', async () => {
-    put('provenance.json', { schema_version: 1, files: { 'a-wide.png': { provider: 'manual', originalName: 'a', importedAt: '2026-11-06T12:00:00Z' } } });
+    put('provenance.lfp.json', { schema_version: 1, files: { 'a-wide.png': { provider: 'manual', originalName: 'a', importedAt: '2026-11-06T12:00:00Z' } } });
     expect(await readProvenance(root)).toMatchObject({ ok: false, reason: 'invalid-schema' });
   });
 });
