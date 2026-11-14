@@ -44,6 +44,30 @@ describe('producerConfigSchema', () => {
     expect(producerConfigSchema.safeParse({ schema_version: 1 }).success).toBe(true);
   });
 
+  it('accepts named overlays and where they apply, and rejects a malformed one', () => {
+    const config = {
+      schema_version: 1,
+      overlays: {
+        grain: { type: 'grain', strength: 20 },
+        leak: { type: 'light-leak', color: 'orange', opacity: 0.4 },
+        glyph: { type: 'asset', file: 'assets/glyph.png', position: 'top-right', scale: 0.1, opacity: 0.6 },
+      },
+      overlayDefaults: ['glyph'],
+      sceneOverlays: { '3': ['grain', 'leak'] },
+      shots: { a: { overlays: ['grain'] } },
+    };
+    expect(producerConfigSchema.safeParse(config).success).toBe(true);
+    for (const bad of [
+      { overlays: { x: { type: 'sparkle' } } },
+      { overlays: { x: { type: 'grain', strength: 0 } } },
+      { overlays: { x: { type: 'asset' } } },
+      { overlays: { x: { type: 'light-leak', opacity: 2 } } },
+      { sceneOverlays: { three: ['grain'] } },
+    ]) {
+      expect(producerConfigSchema.safeParse({ schema_version: 1, ...bad }).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
   it('accepts a production type with outputs, a budget, and a treatment per shot', () => {
     const config = {
       schema_version: 1,

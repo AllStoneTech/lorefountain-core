@@ -106,6 +106,49 @@ export const textStyleSchema = z
   .strict();
 export type TextStyle = z.infer<typeof textStyleSchema>;
 
+/** Where a recurring overlay asset sits in the frame. */
+export const OVERLAY_POSITIONS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'] as const;
+
+/**
+ * A named picture overlay the renderer lays over a shot (spec, "Picture, per
+ * shot"): film `grain`, a drifting warm `light-leak`, or a recurring `asset`
+ * (an image such as a glyph or logo, with transparency). Shots opt in by name:
+ * `overlayDefaults` (every shot), `sceneOverlays` (a scene) or a shot's own
+ * `overlays`.
+ */
+export const overlayDefinitionSchema = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('grain'),
+      /** Noise strength, 1 (faint) to 100 (heavy). Default 12. */
+      strength: z.number().min(1).max(100).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('light-leak'),
+      /** An ffmpeg color name or `0xRRGGBB`. Default `orange`. */
+      color: z.string().optional(),
+      /** How strongly it blends in, 0 to 1. Default 0.35. */
+      opacity: z.number().min(0).max(1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('asset'),
+      /** An image with transparency (PNG), relative to the project root. */
+      file: z.string().min(1),
+      /** Default `top-right`. */
+      position: z.enum(OVERLAY_POSITIONS).optional(),
+      /** Width as a fraction of the frame width, 0.02 to 1. Default 0.12. */
+      scale: z.number().min(0.02).max(1).optional(),
+      /** 0 to 1. Default 0.8. */
+      opacity: z.number().min(0).max(1).optional(),
+    })
+    .strict(),
+]);
+export type OverlayDefinition = z.infer<typeof overlayDefinitionSchema>;
+
 /**
  * How the Producer makes a project: one coordinator per production type
  * (Producer `docs/COORDINATORS.md`). Separate from LoreFountain's
@@ -157,6 +200,8 @@ export const shotFixSchema = z
     motion: z.string().optional(),
     /** Overrides the shot's length, in seconds. */
     durationSeconds: z.number().positive().optional(),
+    /** Names from `overlays` to lay over this shot, in addition to the defaults and its scene's. */
+    overlays: z.array(z.string().min(1)).optional(),
   })
   .strict();
 export type ShotFix = z.infer<typeof shotFixSchema>;
@@ -248,6 +293,12 @@ export const producerConfigSchema = z
     casting: z.record(z.string(), castingEntrySchema).optional(),
     /** On-screen text styles, keyed by style tag; the keys `super`, `titleCard`, `chyron` and `captions` are the defaults. */
     textStyles: z.record(z.string(), textStyleSchema).optional(),
+    /** Named picture overlays (grain, light leaks, a recurring asset), by name. */
+    overlays: z.record(z.string(), overlayDefinitionSchema).optional(),
+    /** Names from `overlays` laid over every shot. */
+    overlayDefaults: z.array(z.string().min(1)).optional(),
+    /** Names from `overlays` laid over every shot of a scene, keyed by scene number (`"3"`). */
+    sceneOverlays: z.record(z.string().regex(/^\d+$/), z.array(z.string().min(1))).optional(),
     /** Accepted takes promoted to a character's references, keyed by character id; values are file fingerprints. */
     lockedReferences: z.record(z.string(), z.array(z.string().min(1))).optional(),
     shots: z.record(z.string(), shotFixSchema).optional(),

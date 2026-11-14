@@ -4,6 +4,10 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **`producer.lfp.json`:** `overlays` (named picture overlays: `grain` with `strength`, `light-leak` with `color` and `opacity`, `asset` with `file`, `position`, `scale` and `opacity`), `overlayDefaults` (names applied to every shot), `sceneOverlays` (names per scene number) and `shots[tag].overlays`. New exports `overlayDefinitionSchema`, `OverlayDefinition` and `OVERLAY_POSITIONS`. All optional; existing files stay valid.
+
 ## [0.4.0] - 2026-11-14
 
 Producer file names carry `.lfp.`, on-screen text prefix lines, shot tags, cue-extension checks and more Producer config. Install the prebuilt package attached to the release (`lorefountain-core-0.4.0.tgz`).
