@@ -4,6 +4,10 @@ All notable changes to LoreFountain-Core are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-15
+
+`LOOK:` lines with the per-script breakdown, and named picture overlays in `producer.lfp.json`. Install the prebuilt package attached to the release (`lorefountain-core-0.5.0.tgz`).
+
 ### Added
 
 - **`LOOK: CHARACTER label` lines**: a prefix line saying a character is in a look from there until their next `LOOK:` in the script, across shots and scenes. The character is the longest character name or alias the text starts with (so `DR. ADA OKAFOR lab coat` works); a `-`, dash or `:` before the label is dropped. `buildShotMap` writes `looks` (the lines written in the shot) and `activeLooks` (each character's look at the end of the shot) to the shot, only when a script uses them, and warns `look-unknown-character` and `look-missing-label` for a line it can't read. New `shots/looks` exports `findLookIssues`, which warns `unknown-look` when a label isn't one of the character's `looks` in `characters.json` (a character with no looks listed isn't checked). New `shots/breakdown` exports `buildBreakdown` and `breakdownPathFor` (`<script>.breakdown.json`): per scene, the cast with their looks, locations, props, sounds and on-screen text. Exports remove `LOOK:` lines with the shot lines.
